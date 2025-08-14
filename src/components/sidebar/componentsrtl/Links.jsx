@@ -51,6 +51,7 @@ export function SidebarLinks() {
         icon={<Chart size="27" variant="Bulk" />}
         name={"Logs"}
       /> */}
+      
       <Links
         route={"/category"}
         icon={<Category size="27" variant="Bulk" />}
