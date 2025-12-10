@@ -21,7 +21,7 @@ const App = () => {
   const authme = async () => {
     try {
       const res = await api_service.get("/auth/me");
-      localStorage.setItem("token", res.token);
+      localStorage.setItem("token", res.data.token);
     } catch (er) {
       console.log(er);
     }
