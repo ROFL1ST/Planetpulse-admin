@@ -20,7 +20,7 @@ import Logs from "views/admin/log";
 const App = () => {
   const authme = async () => {
     try {
-      const res = await api_service.get("/admin/auth");
+      const res = await api_service.get("/auth/me");
       localStorage.setItem("token", res.token);
     } catch (er) {
       console.log(er);
