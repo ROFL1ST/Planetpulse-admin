@@ -16,7 +16,7 @@ const Account = () => {
     try {
       setData((prev) => ({ ...prev, loading: true, error: false }));
       // Menggunakan endpoint yang sudah di-map ke /admin/users
-      const res = await api_service.get("/admin/user"); 
+      const res = await api_service.get("/admin/users"); 
       
       if(res.status === "success" && Array.isArray(res.data)){
           setData((prev) => ({ ...prev, data: res.data, loading: false }));
