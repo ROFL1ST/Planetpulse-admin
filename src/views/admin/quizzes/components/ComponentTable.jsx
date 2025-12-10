@@ -23,10 +23,11 @@ import Lottie from "react-lottie";
 import { format } from "date-fns";
 import OptionField from "components/fields/OptionField";
 import Loading from "components/Loading";
-
+import SwitchField from "components/fields/SwitchField";
 const schema = yup
   .object({
     title: yup.string().required(),
+    description: yup.string().required(),
   })
   .required();
 
@@ -63,24 +64,39 @@ const DevelopmentTable = ({ header, data, getData }) => {
   function openModalQuestion() {
     setIsOpenQue(true);
   }
+
+  const [topicsData, setTopicsData] = React.useState({
+    data: [],
+    loading: true,
+  });
+  const getTopics = async () => {
+    try {
+      const res = await api_service.get("/admin/topics");
+      setTopicsData({ ...topicsData, data: res.data, loading: false });
+    } catch (error) {
+      console.log(error);
+      setTopicsData({ ...topicsData, loading: false });
+    }
+  };
+
+  useEffect(() => {
+    getTopics();
+  }, []);
   return (
     <Card extra={"w-full h-full p-4"}>
       <ModalCreate
         closeModal={closeModalCreate}
         isOpen={isOpenCreate}
         getData={getData}
+        topicsData={topicsData}
       />
-      <ModalQuestion
-        closeModal={closeModalQuestion}
-        isOpen={isOpenQue}
-        getData={getData}
-        selectedLayanan={selectedLayanan}
-      />
+
       <ModalEdit
         closeModal={closeModalEdit}
         isOpen={isOpenEdit}
         getData={getData}
         selectedLayanan={selectedLayanan}
+        topicsData={topicsData}
       />
       <ModalDelete
         getData={getData}
@@ -153,17 +169,26 @@ const DevelopmentTable = ({ header, data, getData }) => {
                   </td>
                   <td>
                     <p className="my-3 mr-5 text-sm font-bold text-navy-700 dark:text-white">
-                      {data.stage_name}
+                      {
+                        topicsData.data.find(
+                          (topic) => topic.ID == data.topic_id
+                        )?.title
+                      }
                     </p>
                   </td>
                   <td>
                     <p className="my-3 mr-5 text-sm font-bold text-navy-700 dark:text-white">
-                      {data.questions.length} Questions
+                      {data.description}
                     </p>
                   </td>
                   <td>
                     <p className="my-3 mr-5 text-sm font-bold text-navy-700 dark:text-white">
-                      {format(new Date(data.createdAt), "MMMM dd, yyyy")}
+                      {data.active ? "Active" : "Inactive"}
+                    </p>
+                  </td>
+                  <td>
+                    <p className="my-3 mr-5 text-sm font-bold text-navy-700 dark:text-white">
+                      {format(new Date(data.CreatedAt), "MMMM dd, yyyy")}
                     </p>
                   </td>
                   <td>
@@ -176,15 +201,7 @@ const DevelopmentTable = ({ header, data, getData }) => {
                     >
                       <Edit className="h-4 w-4 text-white" />
                     </button>
-                    <button
-                      onClick={() => {
-                        setSelectedLayanan(data);
-                        openModalQuestion();
-                      }}
-                      className="rounded-md bg-green-500 px-4 py-1.5 hover:bg-green-600 md:mr-4 lg:mr-3"
-                    >
-                      <MessageQuestion className="h-4 w-4 text-white" />
-                    </button>
+
                     <button
                       onClick={() => {
                         setSelectedLayanan(data);
@@ -221,7 +238,13 @@ const DevelopmentTable = ({ header, data, getData }) => {
 
 export default DevelopmentTable;
 
-function ModalEdit({ isOpen, closeModal, getData, selectedLayanan }) {
+function ModalEdit({
+  isOpen,
+  closeModal,
+  getData,
+  selectedLayanan,
+  topicsData,
+}) {
   const {
     register,
     handleSubmit,
@@ -232,16 +255,20 @@ function ModalEdit({ isOpen, closeModal, getData, selectedLayanan }) {
   const [errorMessage, setErrorMessage] = useState();
 
   const [disable, setDisable] = useState(true);
-  const [stage, setStage] = useState("");
+  const [topic, setTopic] = useState("");
+  const [active, setActive] = useState(false); // 2. State untuk active
+
   async function onSubmit(data) {
     try {
       setIsLoading(true);
       const formdata = {
         title: data.title,
-        id_stages: stage,
+        topic_id: topic,
+        description: data.description,
+        active: active, // 3. Gunakan nilai dari state active
       };
 
-      await api_service.put(`/lesson/quiz/${selectedLayanan?._id}`, formdata);
+      await api_service.put(`/admin/quizzes/${selectedLayanan?.ID}`, formdata);
       setIsLoading(false);
       getData();
       closeModal();
@@ -252,43 +279,39 @@ function ModalEdit({ isOpen, closeModal, getData, selectedLayanan }) {
       console.log(er);
     }
   }
+
   useEffect(() => {
-    if (!stage) {
+    if (!topic) {
       setDisable(true);
     } else {
       setDisable(false);
     }
-  }, [stage]);
+  }, [topic]);
+
   useEffect(() => {
     if (isOpen) {
-      setStage(selectedLayanan.id_stages);
+      setTopic(selectedLayanan.topic_id);
+      setActive(selectedLayanan.active); // 4. Set initial active state
     }
   }, [isOpen, selectedLayanan]);
+
   useEffect(() => {
     reset();
     if (!isOpen) {
-      setStage("")
+      setTopic("");
+      setActive(false); // Reset active state
     }
   }, [isOpen, reset]);
 
-  // stages
-  const [stageData, setStageData] = React.useState({ data: [], loading: true });
-  const getStage = async () => {
-    try {
-      const res = await api_service.get("/admin/stagges");
-      setStageData({ ...stageData, data: res.data, loading: false });
-    } catch (error) {
-      console.log(error);
-      setStageData({ ...stageData, loading: false });
-    }
-  };
-
-  useEffect(() => {
-    getStage();
-  }, []);
+  // topics
   function handleChange(e) {
-    setStage(e.target.value);
+    setTopic(e.target.value);
   }
+
+  function handleActiveChange(e) {
+    setActive(e.target.checked);
+  }
+
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-[99]" onClose={closeModal}>
@@ -321,7 +344,7 @@ function ModalEdit({ isOpen, closeModal, getData, selectedLayanan }) {
                   as="h3"
                   className="mb-5 text-lg font-bold leading-6 text-gray-900"
                 >
-                  Edit Layanan
+                  Edit Quizz
                 </Dialog.Title>
                 <form onSubmit={handleSubmit(onSubmit)}>
                   <InputField
@@ -336,15 +359,38 @@ function ModalEdit({ isOpen, closeModal, getData, selectedLayanan }) {
                       Nama Quizz tidak boleh kosong
                     </p>
                   )}
+                  <InputField
+                    label="Deskripsi Quizz"
+                    register={register}
+                    name="description"
+                    extra="mb-1"
+                    value={selectedLayanan?.description}
+                  />
+                  {errors?.title && (
+                    <p className="text-sm italic text-red-500">
+                      Nama Quizz tidak boleh kosong
+                    </p>
+                  )}
                   <OptionField
                     handleChange={handleChange}
-                    data={stageData.data}
+                    data={topicsData.data}
                     name={"id_stagges"}
-                    placeholder={"Pilih Stage"}
-                    loading={stageData.loading}
-                    label={"Pilih Stage"}
-                    value={stage}
+                    placeholder={"Pilih Topic"}
+                    loading={topicsData.loading}
+                    label={"Pilih Topic"}
+                    value={topic}
                   />
+
+                  {/* 5. Tambahkan SwitchField di sini */}
+                  <div className="mt-4">
+                    <SwitchField
+                      id="activeSwitch"
+                      label={active ? "Active" : "Inactive"}
+                      desc="Set status quiz"
+                      checked={active}
+                      onChange={handleActiveChange}
+                    />
+                  </div>
 
                   <div className="mt-4 flex items-center">
                     <button
@@ -371,7 +417,7 @@ function ModalEdit({ isOpen, closeModal, getData, selectedLayanan }) {
     </Transition>
   );
 }
-function ModalCreate({ isOpen, closeModal, getData }) {
+function ModalCreate({ isOpen, closeModal, getData, topicsData }) {
   const {
     register,
     handleSubmit,
@@ -382,16 +428,19 @@ function ModalCreate({ isOpen, closeModal, getData }) {
   const [errorMessage, setErrorMessage] = useState();
 
   const [disable, setDisable] = useState(true);
-  const [stage, setStage] = useState("");
+  const [topic, setTopic] = useState("");
+  const [active, setActive] = useState(false);
   async function onSubmit(data) {
     try {
       setIsLoading(true);
       const formdata = {
         title: data.title,
-        id_stages: stage,
+        topic_id: topic,
+        active: active,
+        description: data.description,
       };
 
-      await api_service.post("/lesson/quiz/post", formdata);
+      await api_service.post("/admin/quizzes", formdata);
       setIsLoading(false);
       getData();
       closeModal();
@@ -403,15 +452,15 @@ function ModalCreate({ isOpen, closeModal, getData }) {
     }
   }
   useEffect(() => {
-    if (!stage) {
+    if (!topic) {
       setDisable(true);
     } else {
       setDisable(false);
     }
-  }, [stage]);
+  }, [topic]);
   useEffect(() => {
     reset();
-    setStage("");
+    setTopic("");
   }, [isOpen, reset]);
 
   // stages
@@ -430,10 +479,12 @@ function ModalCreate({ isOpen, closeModal, getData }) {
     getStage();
   }, []);
   function handleChange(e) {
-    setStage(e.target.value);
+    setTopic(e.target.value);
   }
 
-  //
+  function handleActiveChange(e) {
+    setActive(e.target.checked);
+  }
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -481,16 +532,35 @@ function ModalCreate({ isOpen, closeModal, getData }) {
                       Nama Quizz tidak boleh kosong
                     </p>
                   )}
+                  <InputField
+                    label="Deskripsi Quizz"
+                    register={register}
+                    name="description"
+                    extra="mb-1"
+                  />
+                  {errors?.description && (
+                    <p className="text-sm italic text-red-500">
+                      Deskrispi Quizz tidak boleh kosong
+                    </p>
+                  )}
                   <OptionField
                     handleChange={handleChange}
-                    data={stageData.data}
-                    name={"id_stagges"}
-                    placeholder={"Pilih Stage"}
+                    data={topicsData.data}
+                    name={"topic_id"}
+                    placeholder={"Pilih Topic"}
                     loading={stageData.loading}
-                    label={"Pilih Stage"}
-                    value={stage}
+                    label={"Pilih Topik Quizz"}
+                    value={topic}
                   />
-
+                  <div className="mt-4">
+                    <SwitchField
+                      id="activeSwitch"
+                      label={active ? "Active" : "Inactive"}
+                      desc="Set status quiz"
+                      checked={active}
+                      onChange={handleActiveChange}
+                    />
+                  </div>
                   <div className="mt-4 flex items-center">
                     <button
                       type="button"
@@ -524,167 +594,13 @@ function ModalCreate({ isOpen, closeModal, getData }) {
   );
 }
 
-function ModalQuestion({ isOpen, closeModal, getData, selectedLayanan }) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState();
-
-  const [disable, setDisable] = useState(true);
-  const [selectedQuestion, setSelectedQuestion] = useState([]);
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    try {
-      setIsLoading(true);
-      const formdata = {
-        questions: selectedQuestion,
-      };
-      await api_service.put(`/lesson/quiz/${selectedLayanan?._id}`, formdata);
-      setIsLoading(false);
-      getData();
-      closeModal();
-    } catch (er) {
-      setErrorMessage(er);
-      setIsLoading(false);
-      console.log(er);
-    }
-  }
-  useEffect(() => {
-    if (selectedQuestion.length < 3) {
-      setDisable(true);
-    } else {
-      setDisable(false);
-    }
-  }, [selectedQuestion]);
-  useEffect(() => {
-    setSelectedQuestion([]);
-  }, [isOpen]);
-
-  //
-  const handleOptionClick = (option) => {
-    if (selectedQuestion.includes(option)) {
-      setSelectedQuestion(selectedQuestion.filter((item) => item !== option));
-    } else if (selectedQuestion.length < 5) {
-      setSelectedQuestion([...selectedQuestion, option]);
-    }
-  };
-
-  // questions
-  const [question, setQuestion] = useState({ data: [], loading: true });
-
-  const getQuestion = async () => {
-    try {
-      const res = await api_service.get("/admin/question");
-      setQuestion({ data: res.data, loading: false });
-    } catch (error) {
-      console.log(error);
-      setQuestion({ ...question, loading: false });
-    }
-  };
-
-  useEffect(() => {
-    getQuestion();
-  }, []);
-  useEffect(() => {
-    if (isOpen) {
-      const initialQue = selectedLayanan?.questions.map((i) => i._id);
-      setSelectedQuestion(initialQue);
-    }
-  }, [isOpen]);
-  return (
-    <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-[99]" onClose={closeModal}>
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-[#000000] bg-opacity-50" />
-        </Transition.Child>
-
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4 text-center">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300"
-              enterFrom="opacity-0 scale-95"
-              enterTo="opacity-100 scale-100"
-              leave="ease-in duration-200"
-              leaveFrom="opacity-100 scale-100"
-              leaveTo="opacity-0 scale-95"
-            >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-                {errorMessage && <Alert message={errorMessage} />}
-                <Dialog.Title
-                  as="h3"
-                  className="mb-5 text-lg font-bold leading-6 text-gray-900"
-                >
-                  Insert Question
-                </Dialog.Title>
-                {question.loading ? (
-                  <Loading />
-                ) : (
-                  <form onSubmit={handleSubmit}>
-                    <div className="scrollbar flex max-h-[600px] flex-col gap-y-5 overflow-y-auto px-3">
-                      {question.data?.map((i, key) => (
-                        <button
-                          type="button"
-                          key={key}
-                          onClick={() => handleOptionClick(i._id)}
-                          className={`rounded-xl border  px-4 py-2 transition-all ${
-                            selectedQuestion.includes(i._id)
-                              ? "bg-blue-500 text-white"
-                              : "text-blue-500 "
-                          }`}
-                        >
-                          {i.text}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="mt-4 flex items-center">
-                      <button
-                        type="button"
-                        className="border-transparent mr-5 justify-center rounded-md border bg-red-500 px-4 py-2 text-sm font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-                        onClick={closeModal}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={disable}
-                        className={`border-transparent flex justify-center rounded-md border ${
-                          disable
-                            ? "cursor-not-allowed bg-gray-300 text-gray-700"
-                            : "bg-blue-100 text-blue-900 hover:bg-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                        } px-4 py-2 text-sm font-medium `}
-                      >
-                        {isLoading ? (
-                          <AiOutlineLoading3Quarters className="animate-spin text-xl" />
-                        ) : (
-                          "Submit"
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                )}
-              </Dialog.Panel>
-            </Transition.Child>
-          </div>
-        </div>
-      </Dialog>
-    </Transition>
-  );
-}
 function ModalDelete({ isOpen, closeModal, selectedLayanan, getData }) {
   const [isLoading, setIsLoading] = useState(false);
 
   async function deleteQuizz(id) {
     try {
       setIsLoading(true);
-      await api_service.delete(`/lesson/quiz/${id}`);
+      await api_service.delete(`/admin/quizzes/${id}`);
       getData();
       setIsLoading(false);
       closeModal();
@@ -738,7 +654,7 @@ function ModalDelete({ isOpen, closeModal, selectedLayanan, getData }) {
                     Tidak
                   </button>
                   <button
-                    onClick={() => deleteQuizz(selectedLayanan?._id)}
+                    onClick={() => deleteQuizz(selectedLayanan?.ID)}
                     type="button"
                     className="border-transparent flex justify-center rounded-md border bg-blue-100 px-4 py-2 text-sm font-medium text-blue-900 hover:bg-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
                   >

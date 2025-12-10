@@ -1,7 +1,9 @@
 import Switch from "components/switch";
 
 const SwitchField = (props) => {
-  const { id, label, desc, mt, mb } = props;
+  // 1. Ambil sisa props (seperti onChange, checked, disabled) menggunakan ...rest
+  const { id, label, desc, mt, mb, ...rest } = props; 
+
   return (
     <div className={`flex justify-between ${mt} ${mb} items-center`}>
       <label
@@ -14,7 +16,8 @@ const SwitchField = (props) => {
         <p className={`text-base text-gray-600`}>{desc}</p>
       </label>
       <div>
-        <Switch id={id} />
+        {/* 2. Teruskan ...rest ke komponen Switch agar event handler bekerja */}
+        <Switch id={id} {...rest} />
       </div>
     </div>
   );

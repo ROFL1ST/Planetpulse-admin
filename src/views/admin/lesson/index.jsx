@@ -28,7 +28,7 @@ const Lesson = () => {
   const getData = async () => {
     try {
       setData({ ...data, loading: true });
-      const res = await api_service.get("/lesson");
+      const res = await api_service.get("/topics");
       setData({ ...data, data: res.data, loading: false });
     } catch (error) {
       console.log(error);
@@ -89,12 +89,12 @@ const Lesson = () => {
             return (
               <LessonCard
                 key={i}
-                id={data._id}
+                slug={data.slug}
                 name={data.title}
                 image={data.photo_url}
-                category={data.categories}
+                description={data.description}
                 getData={getData}
-                created={format(new Date(data.createdAt), 'MMMM dd, yyyy')}
+                created={format(new Date(data.CreatedAt), 'MMMM dd, yyyy')}
               />
             );
           })}

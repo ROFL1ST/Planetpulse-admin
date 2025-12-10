@@ -1,70 +1,96 @@
 import axios from "axios";
 
+// Ganti URL ini dengan alamat BASE_URL backend Go Anda
+const BASE_URL = process.env.REACT_APP_BASE_URL || "http://localhost:8000/api";
+
+const api = axios.create({
+  baseURL: BASE_URL,
+});
+
+// Interceptor Request: Jaminan Token Selalu Terkirim
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    // Set Content-Type default ke application/json (kecuali multipart)
+    if (!config.headers["Content-Type"]) {
+      config.headers["Content-Type"] = "application/json";
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 class ApiService {
-  constructor() {
-    // this.baseUrl = "http://localhost:9000/api";
-    this.baseUrl = "https://planet-pulse-be.vercel.app/api";
-    this.headers = { authorization: `Bearer ${localStorage.getItem("token")}` };
-  }
+  // Metode Login: Menerima data {username, password} dari frontend
   login(data) {
     return new Promise((resolve, reject) => {
-      axios
-        .post(`${this.baseUrl}/admin/login`, data)
+      // Backend Go menggunakan field 'username' dan 'password'
+      const loginPayload = {
+        username: data.username,
+        password: data.password,
+      };
+
+      api
+        .post(`/admin/login`, loginPayload)
         .then((res) => resolve(res.data))
-        .catch((er) => reject(er.response?.data));
+        .catch((er) => reject(er.response?.data)); // Mengambil data error dari respons
     });
   }
+
   get(endpoint) {
     return new Promise((resolve, reject) => {
-      axios
-        .get(`${this.baseUrl}${endpoint}`, { headers: this.headers })
+      api
+        .get(endpoint)
         .then((res) => resolve(res.data))
         .catch((er) => reject(er.response));
     });
   }
+
+  // Metode POST umum (Menggunakan instance axios yang sudah di-interceptor)
   post(endpoint, data) {
-    return new Promise((resolve, reject) => {
-      axios
-        .post(`${this.baseUrl}${endpoint}`, data, { headers: this.headers })
-        .then((res) => resolve(res.data))
-        .catch((er) => reject(er.response));
-    });
+    return api
+      .post(endpoint, data)
+      .then((res) => res.data)
+      .catch((er) => Promise.reject(er.response));
   }
+
+  // Metode POST dengan Document (Menangani Content-Type multipart)
   postWithDocument(endpoint, data) {
-    return new Promise((resolve, reject) => {
-      axios
-        .post(`${this.baseUrl}${endpoint}`, data, {
-          headers: { ...this.headers, "Content-Type": "multipart/form-data" },
-        })
-        .then((res) => resolve(res.data))
-        .catch((er) => reject(er.response));
-    });
+    return api
+      .post(endpoint, data, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      .then((res) => res.data)
+      .catch((er) => Promise.reject(er.response));
   }
+
+  // Metode DELETE
   delete(endpoint) {
-    return new Promise((resolve, reject) => {
-      axios
-        .delete(`${this.baseUrl}${endpoint}`, { headers: this.headers })
-        .then((res) => resolve(res.data))
-        .catch((er) => reject(er.response));
-    });
+    return api
+      .delete(endpoint)
+      .then((res) => res.data)
+      .catch((er) => Promise.reject(er.response));
   }
+
+  // Metode PUT
   put(endpoint, data) {
-    return new Promise((resolve, reject) => {
-      axios
-        .put(`${this.baseUrl}${endpoint}`, data, { headers: this.headers })
-        .then((res) => resolve(res.data))
-        .catch((er) => reject(er.response));
-    });
+    return api
+      .put(endpoint, data)
+      .then((res) => res.data)
+      .catch((er) => Promise.reject(er.response));
   }
+
+  // Metode PUT dengan Document
   putWithDocument(endpoint, data) {
-    return new Promise((resolve, reject) => {
-      axios
-        .put(`${this.baseUrl}${endpoint}`, data, {
-          headers: { ...this.headers, "Content-Type": "multipart/form-data" },
-        })
-        .then((res) => resolve(res.data))
-        .catch((er) => reject(er.response));
-    });
+    return api
+      .put(endpoint, data, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      .then((res) => res.data)
+      .catch((er) => Promise.reject(er.response));
   }
 }
 

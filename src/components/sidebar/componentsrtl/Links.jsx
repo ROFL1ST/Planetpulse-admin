@@ -31,11 +31,11 @@ export function SidebarLinks() {
         icon={<Book size="27" variant="Bulk" />}
         name={"Lessons"}
       />
-      <Links
+      {/* <Links
         route={"/stagges"}
         icon={<Stellar size="27" variant="Bulk" />}
         name={"Stagges"}
-      />
+      /> */}
       <Links
         route={"/quizzes"}
         icon={<MessageQuestion size="27" variant="Bulk" />}
@@ -52,11 +52,11 @@ export function SidebarLinks() {
         name={"Logs"}
       /> */}
       
-      <Links
+      {/* <Links
         route={"/category"}
         icon={<Category size="27" variant="Bulk" />}
         name={"Category"}
-      />
+      /> */}
        <Links
         route={"/users"}
         icon={<Personalcard size="27" variant="Bulk" />}

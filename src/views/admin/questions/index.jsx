@@ -8,22 +8,20 @@ export default function Questions() {
     loading: false,
     error: false,
     data: [],
+    quiz: [],
     max: null,
   });
 
-  const getData = async (page, key, limit = 30) => {
+  const getData = async (page = 1, key, limit = 30) => {
     try {
       setData({ ...data, loading: true });
       const res = await api_service.get(
-        `/admin/question${
-          page !== undefined
-            ? `?page=${page}&limit=${limit}`
-            : `?limit=${limit}`
-        }${
+        `/admin/questions?page=${page}&limit=${limit}${
           key !== undefined ? `&key=${key}&limit=${limit}` : `?limit=${limit}`
         }`
       );
-      setData({ ...data, data: res.data, loading: false, max: res.maxPage });
+      const quiz = await api_service.get("/admin/quizzes?page=1&limit=1000");
+      setData({ ...data, data: res.data, loading: false, max: res.meta.total_pages, quiz: quiz.data });
     } catch (error) {
       setData({ ...data, error: true, loading: false });
       console.log(error);

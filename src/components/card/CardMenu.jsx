@@ -193,7 +193,7 @@ function ModalDelete({ getData, id, setIsOpen, isOpen, closeModal, title }) {
   const deleteAlbum = async () => {
     try {
       setIsLoading(true);
-      await api_service.delete(`/lesson/delete/${id}`);
+      await api_service.delete(`/admin/topics/${id}`);
       getData();
       setIsLoading(false);
       setIsOpen(false);

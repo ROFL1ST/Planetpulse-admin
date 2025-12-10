@@ -25,7 +25,7 @@ export default function CreateLesson() {
   const [imgData, setImgData] = React.useState(null);
   const [errorImage, setErrorImage] = React.useState(null);
   const [isLoading, setIsLoading] = React.useState(false);
-  const [isDisable, setIsDisable] = React.useState(true);
+  const [isDisable, setIsDisable] = React.useState(false);
 
   function getImage(e) {
     if (e.target.files && e.target.files[0]) {
@@ -56,15 +56,16 @@ export default function CreateLesson() {
   async function onSubmit(data) {
     try {
       setIsLoading(true);
-      const formdata = new FormData();
-      formdata.append("title", data.title);
-      formdata.append("description", data.description);
-      selectedCategories.forEach((categoryId) => {
-        formdata.append("id_category", categoryId);
-      });
-      formdata.append("photo_url", imgData);
+      const payload = {
+        title: data.title,
+        description: data.description,
+        
+      };
+     
+      
 
-      await api_service.postWithDocument("/lesson/post", formdata);
+
+      await api_service.postWithDocument("/admin/topics", payload);
       setIsLoading(false);
       navigate(-1, { replace: true });
     } catch (error) {
@@ -73,13 +74,18 @@ export default function CreateLesson() {
     }
   }
 
-  React.useEffect(() => {
-    if (!imgData) {
-      setIsDisable(true);
-    } else {
-      setIsDisable(false);
-    }
-  }, [description, imgData, errors?.title]);
+  // React.useEffect(() => {
+  //   if (
+  //     formdata.title === "" ||
+  //     description === "" ||
+  //     imgData === null ||
+  //     errors?.title
+  //   ) {
+  //     setIsDisable(true);
+  //   } else {
+  //     setIsDisable(false);
+  //   }
+  // }, [description, imgData, errors?.title]);
 
   //   category
   const [categoryData, setCategoryData] = React.useState({
@@ -112,11 +118,11 @@ export default function CreateLesson() {
   return (
     <div className="mt-3">
       <h1 className="mb-5 text-xl font-bold text-navy-700 dark:text-white">
-        Buat Lesson
+        Buat Topik
       </h1>
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="lg:flex lg:space-x-8">
-          <div className="w-full">
+          {/* <div className="w-full">
             <img
               src={!img ? thumbnail : img}
               alt="thumbnail"
@@ -136,7 +142,7 @@ export default function CreateLesson() {
                 Upload Image
               </button>
             </div>
-          </div>
+          </div> */}
           <div className="mt-5 w-full lg:mt-0">
             <InputField
               register={register}
@@ -144,7 +150,7 @@ export default function CreateLesson() {
               label="Title"
               extra={"mb-3"}
             />
-            <label
+            {/* <label
               htmlFor={"category"}
               className={`ml-3 mt-3 text-sm font-bold text-navy-700 dark:text-white`}
             >
@@ -160,11 +166,11 @@ export default function CreateLesson() {
                   <p>{i.name}</p>
                 </div>
               ))}
-            </div>
+            </div> */}
             <TextField
               register={register}
               id={"description"}
-              label={"konten"}
+              label={"Deskripsi"}
               disabled={false}
             />
             <button

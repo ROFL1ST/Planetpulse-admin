@@ -9,10 +9,12 @@ export default function Transaction() {
     error: false,
     data: [],
   });
-  const getData = async () => {
+  const getData = async (page = 1, limit = 30) => {
     try {
       setData({ ...data, loading: true });
-      const res = await api_service.get("/admin/quizzes");
+      const res = await api_service.get(
+        "/admin/quizzes?page=" + page + "&limit=" + limit
+      );
       setData({ ...data, data: res.data, loading: false });
     } catch (error) {
       setData({ ...data, error: true, loading: false });
@@ -24,7 +26,11 @@ export default function Transaction() {
   }, []);
   return (
     <div className="mt-5 h-full">
-      <DevelopmentTable header={columnsDataDevelopment} getData={getData} data={data} />
+      <DevelopmentTable
+        header={columnsDataDevelopment}
+        getData={getData}
+        data={data}
+      />
     </div>
   );
 }

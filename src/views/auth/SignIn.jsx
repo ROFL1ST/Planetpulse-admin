@@ -3,78 +3,98 @@ import InputField from "components/fields/InputField";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import { useState } from "react";
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
+// Mengubah skema validasi dari 'email' menjadi 'username'
 const schema = yup
   .object({
-    email: yup.string().required().email(),
-    password: yup.string().required(),
+    username: yup.string().required("Username wajib diisi"),
+    password: yup.string().required("Password wajib diisi"),
   })
   .required();
 
 export default function SignIn() {
-  const [errorEmail, setErrorEmail] = useState(null);
+  // Mengubah nama state error yang mereferensikan username
+  const [errorUsername, setErrorUsername] = useState(null); 
   const [errorPassword, setErrorPassword] = useState(null);
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm({ resolver: yupResolver(schema) });
+  } = useForm({ 
+    resolver: yupResolver(schema),
+    defaultValues: { username: '', password: ''} 
+  });
   const navigate = useNavigate();
   const [load, setLoad] = useState(false);
+
   const onSubmit = async (data) => {
+    // data kini berisi { username: "...", password: "..." }
     try {
       setLoad(true);
+      setErrorUsername(null);
+      setErrorPassword(null);
+      
       const res = await api_service.login(data);
-      if (res.status == "Success") {
-        // console.log(res);
-        localStorage.setItem("token", res.token);
-        setErrorEmail(null);
-        setErrorPassword(null);
-        navigate("/admin/dashboard");
+
+      if (res.status === "success" && res.data && res.data.token) {
+        localStorage.setItem("token", res.data.token);
+        localStorage.setItem("user", JSON.stringify(res.data.user)); 
+        navigate("/admin/default", { replace: true });
       } else {
-        setErrorPassword(res.messages);
+        setErrorPassword("Login gagal, respons token tidak valid.");
       }
     } catch (er) {
-      setLoad(false)
-      console.log(er);
-      if (er.message === "email tidak ditemukan") setErrorEmail(er.message);
-      if (er.message === "password salah") setErrorPassword(er.message);
+      setLoad(false);
+      console.error(er);
+      
+      const errorMessage = er?.message || "Terjadi kesalahan koneksi atau server.";
+      
+      // Sesuaikan pesan error dari backend
+      if (errorMessage.toLowerCase().includes("username")) {
+        setErrorUsername(errorMessage);
+      } else if (errorMessage.toLowerCase().includes("password")) {
+        setErrorPassword(errorMessage);
+      } else {
+        setErrorPassword(errorMessage);
+      }
     }
   };
+
   useEffect(() => {
-    setErrorEmail(null);
+    // Clear custom errors when RHF validation changes
+    setErrorUsername(null);
     setErrorPassword(null);
-  }, [errors?.email?.message, errors?.password?.message]);
+  }, [errors?.username?.message, errors?.password?.message]);
+  
   return (
     <div className="mt-16 mb-16 flex h-full w-full items-center justify-center px-2 md:mx-0 md:px-0 lg:mb-10 lg:items-center lg:justify-start">
       {/* Sign in section */}
       <div className="mt-[10vh] w-full max-w-full flex-col items-center md:pl-4 lg:pl-0 xl:max-w-[420px]">
         <h4 className="mb-2.5 text-4xl font-bold text-navy-700 dark:text-white">
-          Sign In
+          Sign In Admin
         </h4>
         <p className="mb-9 ml-1 text-base text-gray-600">
-          Enter your email and password to sign in!
+          Masukkan username dan password untuk masuk.
         </p>
         <form onSubmit={handleSubmit(onSubmit)}>
-          {/* Email */}
+          {/* Username Field (Menggantikan Email) */}
           <InputField
             register={register}
-            name="email"
+            name="username" // Name diubah ke 'username'
             variant="auth"
             extra="mb-1"
-            label="Email*"
-            placeholder="mail@simmmple.com"
-            id="email"
-            type="email"
+            label="Username*" // Label diubah ke 'Username'
+            placeholder="Masukkan Username Anda"
+            id="username"
+            type="text"
           />
-          {errorEmail && (
-            <p className="mb-3 text-sm text-red-500">{errorEmail}</p>
+          {errorUsername && ( 
+            <p className="mb-3 text-sm text-red-500">{errorUsername}</p>
           )}
           <p className="mb-3 text-sm text-red-500">
-            {errors?.email && "Email wajib diisi"}
+            {errors?.username && errors.username.message}
           </p>
           {/* Password */}
           <InputField
@@ -91,10 +111,14 @@ export default function SignIn() {
             <p className="mb-3 text-sm text-red-500">{errorPassword}</p>
           )}
           <p className="mb-3 text-sm text-red-500">
-            {errors?.password && "Password wajib diisi"}
+            {errors?.password && errors.password.message}
           </p>
-          {/* Checkbox */}
-          <button className="linear mt-2 w-full rounded-xl bg-brand-500 py-[12px] text-base font-medium text-white transition duration-200 hover:bg-brand-600 active:bg-brand-700 dark:bg-brand-400 dark:text-white dark:hover:bg-brand-300 dark:active:bg-brand-200">
+          {/* Button */}
+          <button 
+            type="submit"
+            className="linear mt-2 w-full rounded-xl bg-brand-500 py-[12px] text-base font-medium text-white transition duration-200 hover:bg-brand-600 active:bg-brand-700 dark:bg-brand-400 dark:text-white dark:hover:bg-brand-300 dark:active:bg-brand-200"
+            disabled={load}
+          >
             {load ? "Loading..." : "Sign In "}
           </button>
         </form>

@@ -19,6 +19,7 @@ import Papa from "papaparse";
 const schema = yup
   .object({
     title: yup.string().required(),
+    hint: yup.string().optional(),
   })
   .required();
 
@@ -28,6 +29,7 @@ const DevelopmentTable = ({ header, data, getData }) => {
   const [isOpenEdit, setIsOpenEdit] = useState(false);
   const [isOpenUp, setIsOpenUp] = useState(false);
   const [selectedLayanan, setSelectedLayanan] = useState(null);
+  console.log("data di table", data);
   const [currentPage, setCurrentPage] = useState(1);
   function closeModalDelete() {
     setIsOpenDelete(false);
@@ -55,6 +57,24 @@ const DevelopmentTable = ({ header, data, getData }) => {
     setIsOpenUp(true);
   }
 
+  const downloadTemplate = () => {
+    // Header sesuai dengan yang diharapkan backend (adminController.go skip baris pertama)
+    // Kolom: Question, Option1, Option2, Option3, Option4, CorrectAnswer
+    const csvContent =
+      "Pertanyaan,Opsi A,Opsi B,Opsi C,Opsi D,Jawaban Benar,Hint\n" +
+      "Siapa penemu lampu?,Thomas Edison,Nikola Tesla,Albert Einstein,Isaac Newton,Thomas Edison,Tukang listrik terkenal\n";
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "template_soal.csv");
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
     getData(newPage, undefined, 30);
@@ -65,6 +85,7 @@ const DevelopmentTable = ({ header, data, getData }) => {
         closeModal={closeModalCreate}
         isOpen={isOpenCreate}
         getData={getData}
+        quizData={data.quiz}
         currentPage={currentPage}
       />
       <ModalUp
@@ -72,12 +93,14 @@ const DevelopmentTable = ({ header, data, getData }) => {
         isOpen={isOpenUp}
         getData={getData}
         currentPage={currentPage}
+        quizList={data.quiz}
       />
       <ModalEdit
         closeModal={closeModalEdit}
         isOpen={isOpenEdit}
         getData={getData}
         selectedLayanan={selectedLayanan}
+        quizData={data.quiz}
         currentPage={currentPage}
       />
       <ModalDelete
@@ -92,6 +115,14 @@ const DevelopmentTable = ({ header, data, getData }) => {
           Question List
         </div>
         <div className="flex lg:space-x-5">
+          <button
+            onClick={downloadTemplate}
+            className="flex items-center space-x-1 rounded-full bg-green-600 px-4 py-2 text-white drop-shadow-md transition-colors hover:bg-green-700"
+            title="Download Template CSV"
+          >
+            <DocumentDownload size={20} variant="Bulk" />
+            <p className="hidden sm:block">Template</p>
+          </button>
           <button
             onClick={openModalUp}
             className="flex items-center space-x-1 rounded-full bg-brand-700 px-4 py-2 text-white drop-shadow-md hover:bg-white hover:text-brand-700 dark:bg-brand-400 dark:hover:bg-white dark:hover:text-brand-400"
@@ -155,7 +186,7 @@ const DevelopmentTable = ({ header, data, getData }) => {
                   </td>
                   <td>
                     <p className="my-3 mr-5 text-sm font-bold text-navy-700 dark:text-white">
-                      {data.text}
+                      {data.question}
                     </p>
                   </td>
                   {data.options?.map((data, i) => (
@@ -167,7 +198,7 @@ const DevelopmentTable = ({ header, data, getData }) => {
                   ))}
                   <td>
                     <p className="my-3 mr-5 text-sm font-bold text-navy-700 dark:text-white">
-                      Answer : Option {data.correctOptionIndex + 1}
+                      Answer : Option {data.correct}
                     </p>
                   </td>
                   <td>
@@ -195,25 +226,27 @@ const DevelopmentTable = ({ header, data, getData }) => {
             </tbody>
           </table>
           {/* Pagination controls */}
-          <div className="mt-4 flex items-center">
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="mr-2 rounded-full bg-blue-500 px-3 py-1 text-white"
-            >
-              Previous
-            </button>
-            <p className="mr-2 text-gray-600">
-              Page {currentPage} of {data.max}
-            </p>
-            <button
-              disabled={currentPage === data.max}
-              onClick={() => handlePageChange(currentPage + 1)}
-              className="rounded-full bg-blue-500 px-3 py-1 text-white"
-            >
-              Next
-            </button>
-          </div>
+          {data.data.length > 0 && (
+            <div className="mt-4 flex items-center">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="mr-2 rounded-full bg-blue-500 px-3 py-1 text-white"
+              >
+                Previous
+              </button>
+              <p className="mr-2 text-gray-600">
+                Page {currentPage} of {data.max}
+              </p>
+              <button
+                disabled={currentPage === data.max}
+                onClick={() => handlePageChange(currentPage + 1)}
+                className="rounded-full bg-blue-500 px-3 py-1 text-white"
+              >
+                Next
+              </button>
+            </div>
+          )}
           {data.data.length === 0 && (
             <div className="flex justify-center">
               <div className="w-1/4">
@@ -235,158 +268,83 @@ const DevelopmentTable = ({ header, data, getData }) => {
 };
 
 export default DevelopmentTable;
-function ModalUp({ isOpen, closeModal, getData, currentPage }) {
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-  } = useForm();
+function ModalUp({ isOpen, closeModal, getData, currentPage, quizList }) {
+  const { register, handleSubmit, reset } = useForm();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState();
-  const [errorDocument, setErrorDocument] = useState(null);
-  const [documentData, setDocumentData] = useState([]);
-  const [docs, setDocs] = useState(null);
-  const [disable, setDisable] = useState(true);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [quizId, setQuizId] = useState("");
+  console.log("quizList di modal up", quizList);
+  // Mengubah data quizList agar sesuai format OptionField
 
-  useEffect(() => {
-    // Other useEffect logic if needed
-  }, [documentData]);
-
-  function handleCSVFile(content, file) {
-    Papa.parse(content, {
-      header: true,
-      complete: (result) => {
-        const csvArray = result.data;
-        
-        // Define expected headers
-        const expectedHeaders = [
-          "text",
-          "options[0]",
-          "options[1]",
-          "options[2]",
-          "correctOptionIndex",
-        ];
-
-        // Check if CSV headers match the expected headers
-        const csvHeaders = result.meta.fields;
-        if (!areHeadersValid(csvHeaders, expectedHeaders)) {
-          setErrorDocument(
-            "Invalid CSV headers. Please make sure the headers match the expected structure."
-          );
-          return;
-        }
-        setDocs(file);
-        if (csvArray.length > 0) {
-          // Map headers to their respective indices
-          const headerMap = {
-            text: "text",
-            "options[0]": "options[0]",
-            "options[1]": "options[1]",
-            "options[2]": "options[2]",
-            correctOptionIndex: "correctOptionIndex",
-          };
-
-          // Extract values for all entries
-          const allEntriesData = csvArray.map((entry) => ({
-            text: entry[headerMap["text"]] || "",
-            options: [
-              entry[headerMap["options[0]"]] || "",
-              entry[headerMap["options[1]"]] || "",
-              entry[headerMap["options[2]"]] || "",
-            ],
-            correctOptionIndex: entry[headerMap["correctOptionIndex"]] || null,
-          }));
-
-          // Update the state by adding new entries to the existing array
-          setDocumentData((prevData) => [
-            ...(prevData || []),
-            ...allEntriesData,
-          ]);
-
-          // Check if the necessary fields are filled to enable/disable the submit button
-          setDisable(
-            !allEntriesData.every(
-              (entry) =>
-                entry.text &&
-                entry.options.length &&
-                entry.correctOptionIndex !== null
-            )
-          );
-        }
-      },
-      error: (error) => {
-        console.error("CSV parsing error:", error);
-        setErrorDocument("Terjadi kesalahan");
-      },
-    });
-  }
-
-  // Function to check if headers are valid
-  function areHeadersValid(csvHeaders, expectedHeaders) {
-    return (
-      JSON.stringify(csvHeaders.sort()) ===
-      JSON.stringify(expectedHeaders.sort())
-    );
-  }
-
+  // Fungsi untuk menangani perubahan file input
   function getDocument(e) {
     if (e.target.files && e.target.files[0]) {
-      const allowedFileType = "text/csv"; // CSV file type
-
       const file = e.target.files[0];
-      if (file.type === allowedFileType) {
-        const reader = new FileReader();
-
-        reader.onload = (e) => {
-          const content = e.target.result;
-          handleCSVFile(content, file);
-        };
-
-        reader.readAsText(file);
-        setErrorDocument(""); // Clear any previous errors
-      } else {
-        setErrorDocument("Hanya file ber-ekstensi .csv");
+      // Validasi sederhana tipe file (opsional)
+      if (file.type !== "text/csv" && !file.name.endsWith(".csv")) {
+        setErrorMessage("Hanya file CSV yang diperbolehkan.");
+        setSelectedFile(null);
+        return;
       }
+      setErrorMessage(null);
+      setSelectedFile(file);
     }
   }
 
+  // Fungsi Submit ke Backend
   async function onSubmit() {
+    if (!quizId) {
+      setErrorMessage("Harap pilih Kuis target terlebih dahulu.");
+      return;
+    }
+    if (!selectedFile) {
+      setErrorMessage("Harap pilih file CSV terlebih dahulu.");
+      return;
+    }
+
     try {
       setIsLoading(true);
-      const requestData = documentData.map((question) => ({
-        text: question.text,
-        options: question.options,
-        correctOptionIndex: question.correctOptionIndex,
-      }));
+      setErrorMessage(null);
 
-      await api_service.post("/admin/question/bulk-post", requestData);
+      const formData = new FormData();
+      formData.append("quiz_id", quizId); // Backend butuh 'quiz_id'
+      formData.append("file", selectedFile); // Backend butuh 'file'
 
+      // Menggunakan method postWithDocument untuk header multipart/form-data
+      await api_service.postWithDocument("/admin/questions/bulk", formData);
+
+      // Refresh data tabel & reset modal
       setIsLoading(false);
       getData(currentPage, undefined, 30);
       closeModal();
       reset();
+      setSelectedFile(null);
+      setQuizId("");
     } catch (er) {
-      setErrorMessage(er);
+      // Menangani error dari backend
+      const msg =
+        er.response?.data?.message || er.message || "Gagal mengupload file";
+      setErrorMessage(msg);
       setIsLoading(false);
-      console.log(er);
+      console.error(er);
     }
   }
+
+  // Reset state saat modal dibuka/tutup
   useEffect(() => {
-    if (!documentData) {
-      setDisable(true);
-    } else {
-      setDisable(false);
+    if (isOpen) {
+      reset();
+      setSelectedFile(null);
+      setErrorMessage(null);
+      setQuizId("");
     }
-  }, [documentData]);
-  useEffect(() => {
-    reset();
-    setDocumentData(null);
-    setDocs(null);
   }, [isOpen, reset]);
+
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-[99]" onClose={closeModal}>
+        {/* Overlay Gelap */}
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -396,7 +354,7 @@ function ModalUp({ isOpen, closeModal, getData, currentPage }) {
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-[#000000] bg-opacity-50" />
+          <div className="bg-black/50 fixed inset-0" />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
@@ -411,51 +369,93 @@ function ModalUp({ isOpen, closeModal, getData, currentPage }) {
               leaveTo="opacity-0 scale-95"
             >
               <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-                {errorDocument && <Alert message={errorDocument} />}
                 {errorMessage && <Alert message={errorMessage} />}
+
                 <Dialog.Title
                   as="h3"
                   className="mb-5 text-lg font-bold leading-6 text-gray-900"
                 >
-                  Insert Questions
+                  Import Questions (CSV)
                 </Dialog.Title>
+
                 <form onSubmit={handleSubmit(onSubmit)}>
+                  {/* Dropdown Pilih Quiz */}
+                  <div className="mb-4">
+                    <OptionField
+                      label="Pilih Kuis Target"
+                      name="quiz_id"
+                      value={quizId}
+                      data={quizList}
+                      placeholder="Pilih Kuis..."
+                      handleChange={(e) => setQuizId(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Area Upload File */}
                   <button
                     type="button"
-                    className="relative mt-5 flex h-32 w-full items-center justify-center rounded-lg border-2 border-dashed border-blue-300 bg-blue-50"
+                    className={`relative mt-2 flex h-32 w-full items-center justify-center rounded-lg border-2 border-dashed ${
+                      errorMessage
+                        ? "border-red-300 bg-red-50"
+                        : "border-blue-300 bg-blue-50"
+                    }`}
                   >
                     <input
-                      accept="csv"
+                      accept=".csv"
                       onChange={getDocument}
                       type="file"
-                      className="absolute z-10 mt-3 h-full w-full cursor-pointer opacity-0 "
+                      className="absolute z-10 mt-3 h-full w-full cursor-pointer opacity-0"
                     />
-                    <p
-                      className={`text-blue-500 ${documentData && "font-bold"}`}
-                    >
-                      {!docs ? "Upload File csv" : docs?.name}
-                    </p>
+                    <div className="text-center">
+                      <p
+                        className={`text-sm ${
+                          selectedFile
+                            ? "font-bold text-blue-600"
+                            : "text-blue-500"
+                        }`}
+                      >
+                        {selectedFile
+                          ? selectedFile.name
+                          : "Klik untuk upload CSV"}
+                      </p>
+                      {!selectedFile && (
+                        <p className="mt-1 text-xs text-gray-400">
+                          Format: .csv only
+                        </p>
+                      )}
+                    </div>
                   </button>
-                  <div className="mt-4 flex items-center">
+
+                  <p className="mt-3 text-xs text-gray-500">
+                    Format CSV (tanpa header):
+                    <br />
+                    <code>
+                      Pertanyaan, Opsi A, Opsi B, Opsi C, Opsi D, Jawaban Benar
+                    </code>
+                  </p>
+
+                  {/* Tombol Aksi */}
+                  <div className="mt-6 flex justify-end gap-3">
                     <button
                       type="button"
-                      className="border-transparent mr-5 justify-center rounded-md border bg-red-500 px-4 py-2 text-sm font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                      className="border-transparent rounded-md border bg-red-100 px-4 py-2 text-sm font-medium text-red-900 hover:bg-red-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
                       onClick={closeModal}
                     >
-                      Cancel
+                      Batal
                     </button>
                     <button
-                      disabled={disable}
-                      className={`border-transparent flex justify-center rounded-md border ${
-                        disable
-                          ? "cursor-not-allowed bg-gray-300 text-gray-700"
-                          : "bg-blue-100 text-blue-900 hover:bg-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                      } px-4 py-2 text-sm font-medium `}
+                      type="submit"
+                      disabled={isLoading || !selectedFile || !quizId}
+                      className={`border-transparent flex justify-center rounded-md border px-4 py-2 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+                        isLoading || !selectedFile || !quizId
+                          ? "cursor-not-allowed bg-gray-100 text-gray-400"
+                          : "bg-blue-100 text-blue-900 hover:bg-blue-200"
+                      }`}
                     >
                       {isLoading ? (
-                        <AiOutlineLoading3Quarters className="animate-spin text-xl" />
+                        <AiOutlineLoading3Quarters className="animate-spin text-lg" />
                       ) : (
-                        "Submit"
+                        "Upload"
                       )}
                     </button>
                   </div>
@@ -474,6 +474,7 @@ function ModalEdit({
   getData,
   selectedLayanan,
   currentPage,
+  quizData,
 }) {
   const {
     register,
@@ -481,30 +482,37 @@ function ModalEdit({
     formState: { errors },
     reset,
   } = useForm({ resolver: yupResolver(schema) });
+  console.log("selectedLayanan edit", selectedLayanan);
+
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState();
   const [options, setOptions] = useState([]);
   const [disable, setDisable] = useState(true);
   const [correctAnswer, setCorrectAnswer] = useState("");
+  const [quizId, setQuizId] = useState(0);
 
   async function onSubmit(data) {
     try {
       setIsLoading(true);
-      const formdata = {
-        text: data.title,
+
+      const payload = {
+        quiz_id: parseInt(quizId),
+        question: data.title,
+        hint: data.hint,
         options: options.map((option) => option.title),
-        correctOptionIndex: parseInt(correctAnswer),
+        correct: correctAnswer,
       };
-      await api_service.put(
-        `/admin/question/${selectedLayanan?._id}`,
-        formdata
-      );
+
+      // Endpoint Update: /admin/questions/:id
+      // Menggunakan ID dari selectedLayanan
+      await api_service.put(`/admin/questions/${selectedLayanan.ID}`, payload);
+
       setIsLoading(false);
       getData(currentPage, undefined, 30);
       closeModal();
       reset();
     } catch (er) {
-      setErrorMessage(er);
+      setErrorMessage(er.message || "Gagal memperbarui soal");
       setIsLoading(false);
       console.log(er);
     }
@@ -534,13 +542,18 @@ function ModalEdit({
     setCorrectAnswer(e.target.value);
   }
 
+  function handleChangeQuiz(e) {
+    setQuizId(e.target.value);
+  }
+
   useEffect(() => {
     if (isOpen) {
       const newOptions = selectedLayanan.options.map((option) => ({
         title: option,
       }));
       setOptions(newOptions);
-      setCorrectAnswer(selectedLayanan?.correctOptionIndex);
+      setCorrectAnswer(selectedLayanan?.correct);
+      setQuizId(selectedLayanan?.quiz_id);
     }
   }, [isOpen, selectedLayanan]);
   return (
@@ -575,21 +588,28 @@ function ModalEdit({
                   as="h3"
                   className="mb-5 text-lg font-bold leading-6 text-gray-900"
                 >
-                  Create Question
+                  Edit Question
                 </Dialog.Title>
                 <form onSubmit={handleSubmit(onSubmit)}>
                   <InputField
-                    label="Judul Question"
+                    label="Judul"
                     register={register}
-                    value={selectedLayanan?.text}
+                    value={selectedLayanan?.question}
                     name="title"
                     extra="mb-1"
                   />
-                  {errors?.nama && (
+                  {errors?.question && (
                     <p className="text-sm italic text-red-500">
-                      Nama layanan tidak boleh kosong
+                      Pertanyaan tidak boleh kosong
                     </p>
                   )}
+                  <InputField
+                    label="Hint"
+                    register={register}
+                    value={selectedLayanan?.hint}
+                    name="hint"
+                    extra="mb-1"
+                  />
                   {options.map((option, index) => (
                     <div key={index} className="mb-4">
                       {/* <label className="block">
@@ -634,14 +654,22 @@ function ModalEdit({
                   </label> */}
                   <OptionField
                     value={correctAnswer}
+                    // defaultValue={selectedLayanan?.correct}
                     data={options}
-                    name={"correctOptionIndex"}
-                    placeholder={"Pilih Jawaban"}
-                    label={"Pilih Jawaban"}
-                    loading={options.some(
-                      (option) => (option.title || "").trim() === ""
-                    )}
+                    name="correct"
+                    placeholder="Pilih Jawaban"
+                    label="Pilih Jawaban"
                     handleChange={handleChange}
+                  />
+                  <OptionField
+                    value={quizId}
+                    // defaultValue={selectedLayanan?.correct}
+
+                    data={quizData}
+                    name="quiz_id"
+                    placeholder="Pilih Quiz"
+                    label="Pilih Quiz"
+                    handleChange={handleChangeQuiz}
                   />
                   <div className="mt-4 flex items-center">
                     <button
@@ -668,7 +696,7 @@ function ModalEdit({
     </Transition>
   );
 }
-function ModalCreate({ isOpen, closeModal, getData, currentPage }) {
+function ModalCreate({ isOpen, closeModal, getData, currentPage, quizData }) {
   const {
     register,
     handleSubmit,
@@ -681,25 +709,49 @@ function ModalCreate({ isOpen, closeModal, getData, currentPage }) {
     { title: "" },
     { title: "" },
     { title: "" },
+    { title: "" },
   ]);
+  const [quizId, setQuizId] = useState(0);
   const [disable, setDisable] = useState(true);
   const [correctAnswer, setCorrectAnswer] = useState("");
 
   async function onSubmit(data) {
+    // Validasi Quiz ID & Jawaban Benar
+    if (!quizId) {
+      setErrorMessage("Harap pilih Quiz terlebih dahulu.");
+      return;
+    }
+    if (!correctAnswer) {
+      setErrorMessage("Harap tentukan jawaban yang benar.");
+      return;
+    }
+
     try {
       setIsLoading(true);
-      const formdata = {
-        text: data.title,
-        options: options.map((option) => option.title),
-        correctOptionIndex: parseInt(correctAnswer),
+
+      // Sesuaikan payload dengan struktur Struct Question di Backend Go
+      const payload = {
+        quiz_id: parseInt(quizId),
+        question: data.title, // Mapping dari input 'title' ke 'question'
+        options: options.map((option) => option.title), // Array string
+        correct: correctAnswer, // String jawaban benar
+        hint: "", // Opsional, kirim string kosong jika tidak ada input hint
       };
-      await api_service.post("/admin/question/post", formdata);
+
+      // Endpoint Create Question
+      await api_service.post("/admin/questions", payload);
+
       setIsLoading(false);
       getData(currentPage, undefined, 30);
       closeModal();
       reset();
+
+      // Reset state lokal
+      setOptions([{ title: "" }, { title: "" }, { title: "" }, { title: "" }]);
+      setCorrectAnswer("");
+      setQuizId("");
     } catch (er) {
-      setErrorMessage(er);
+      setErrorMessage(er.data?.message || "Gagal membuat soal");
       setIsLoading(false);
       console.log(er);
     }
@@ -716,7 +768,7 @@ function ModalCreate({ isOpen, closeModal, getData, currentPage }) {
   }, [options, correctAnswer]);
   useEffect(() => {
     reset();
-    setOptions(["", "", ""]);
+    setOptions(["", "", "", ""]);
   }, [isOpen, reset]);
 
   const handleOptionChange = (index, value) => {
@@ -727,6 +779,10 @@ function ModalCreate({ isOpen, closeModal, getData, currentPage }) {
 
   function handleChange(e) {
     setCorrectAnswer(e.target.value);
+  }
+
+  function handleChangeQuiz(e) {
+    setQuizId(e.target.value);
   }
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -827,6 +883,17 @@ function ModalCreate({ isOpen, closeModal, getData, currentPage }) {
                     )}
                     handleChange={handleChange}
                   />
+                  <OptionField
+                    value={quizId}
+                    data={quizData}
+                    name={"quiz_id"}
+                    placeholder={"Pilih Quiz"}
+                    label={"Pilih Quiz"}
+                    loading={options.some(
+                      (quizData) => (quizData.title || "").trim() === ""
+                    )}
+                    handleChange={handleChangeQuiz}
+                  />
                   <div className="mt-4 flex items-center">
                     <button
                       type="button"
@@ -870,7 +937,7 @@ function ModalDelete({
   async function deleteDesa(id) {
     try {
       setIsLoading(true);
-      await api_service.delete(`/admin/question/${id}`);
+      await api_service.delete(`/admin/questions/${id}`);
       getData(currentPage, undefined, 30);
       setIsLoading(false);
       closeModal();
@@ -912,7 +979,7 @@ function ModalDelete({
                 >
                   Apakah anda yakin ingin menghapus{" "}
                   <span className="font-black">
-                    ' {selectedLayanan?.text} '
+                    ' {selectedLayanan?.question} '
                   </span>
                 </Dialog.Title>
                 <div className="mt-4 flex items-center">
@@ -924,7 +991,7 @@ function ModalDelete({
                     Tidak
                   </button>
                   <button
-                    onClick={() => deleteDesa(selectedLayanan?._id)}
+                    onClick={() => deleteDesa(selectedLayanan?.ID)}
                     type="button"
                     className="border-transparent flex justify-center rounded-md border bg-blue-100 px-4 py-2 text-sm font-medium text-blue-900 hover:bg-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
                   >
