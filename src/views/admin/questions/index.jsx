@@ -12,30 +12,50 @@ export default function Questions() {
     max: null,
   });
 
-  const getData = async (page = 1, key, limit = 30) => {
+  const [selectedQuiz, setSelectedQuiz] = React.useState("");
+
+  const getData = async (page = 1, key = "", limit = 30, quizId = "") => {
     try {
-      setData({ ...data, loading: true });
-      const res = await api_service.get(
-        `/admin/questions?page=${page}&limit=${limit}${
-          key !== undefined ? `&key=${key}&limit=${limit}` : `?limit=${limit}`
-        }`
-      );
-      const quiz = await api_service.get("/admin/quizzes?page=1&limit=1000");
-      setData({ ...data, data: res.data, loading: false, max: res.meta.total_pages, quiz: quiz.data });
+      setData((prev) => ({ ...prev, loading: true }));
+
+      // Gunakan quizId dari parameter atau dari state
+      const currentQuizId = quizId !== undefined ? quizId : selectedQuiz;
+
+      let url = `/admin/questions?page=${page}&limit=${limit}`;
+      if (key) url += `&key=${key}`;
+      if (currentQuizId) url += `&quiz_id=${currentQuizId}`;
+
+      const res = await api_service.get(url);
+      const quizRes = await api_service.get("/admin/quizzes?page=1&limit=1000");
+
+      setData({
+        loading: false,
+        error: false,
+        data: res.data || [],
+        max: res.meta?.total_pages || 1,
+        quiz: quizRes.data || [],
+      });
     } catch (error) {
-      setData({ ...data, error: true, loading: false });
+      setData((prev) => ({ ...prev, error: true, loading: false }));
       console.log(error);
     }
   };
   React.useEffect(() => {
-    getData();
-  }, []);
+    getData(1, "", 30, selectedQuiz);
+  }, [selectedQuiz]);
   return (
     <div className="mt-5 h-full">
       <DevelopmentTable
         header={columnsDataDevelopment}
         getData={getData}
-        data={data}
+        data={{
+          // Format ulang agar sesuai struktur props di ComponentTable
+          data: data.data,
+          max: data.max,
+          loading: data.loading,
+          quiz: data.quiz, // Kirim list kuis disini
+        }}
+        setSelectedQuiz={setSelectedQuiz}
       />
     </div>
   );

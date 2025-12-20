@@ -5,6 +5,7 @@ export const columnsDataDevelopment = [
   "OPTION 2",
   "OPTION 3",
   "OPTION 4",
+  "TYPE",
   "ANSWER",
   "ACTION",
 ];

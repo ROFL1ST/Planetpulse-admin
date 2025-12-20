@@ -1,10 +1,11 @@
 import Card from "components/card";
 import { Add, DocumentDownload, Edit, Import, Trash } from "iconsax-react";
 import { Dialog, Transition } from "@headlessui/react";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useState, useRef } from "react";
 import React from "react";
 import { FiSearch } from "react-icons/fi";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
+import { MdShortText, MdLibraryAddCheck, MdHelpOutline, MdRadioButtonChecked } from "react-icons/md"; 
 import api_service from "api/api_service";
 import { useForm } from "react-hook-form";
 import InputField from "components/fields/InputField";
@@ -15,7 +16,7 @@ import empty from "assets/json/empty.json";
 import Lottie from "react-lottie";
 import OptionField from "components/fields/OptionField";
 import * as XLSX from "xlsx";
-import Papa from "papaparse";
+
 const schema = yup
   .object({
     title: yup.string().required(),
@@ -23,47 +24,59 @@ const schema = yup
   })
   .required();
 
-const DevelopmentTable = ({ header, data, getData }) => {
+const getTypeBadge = (type) => {
+  switch (type) {
+    case "short_answer":
+      return <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-blue-600 border border-blue-100"><MdShortText size={14} /> Isian</span>;
+    case "boolean":
+      return <span className="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2 py-1 text-xs font-bold text-purple-600 border border-purple-100"><MdHelpOutline size={14} /> B/S</span>;
+    case "multi_select":
+      return <span className="inline-flex items-center gap-1 rounded-md bg-orange-50 px-2 py-1 text-xs font-bold text-orange-600 border border-orange-100"><MdLibraryAddCheck size={14} /> Multi</span>;
+    default:
+      return <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-bold text-gray-600 border border-gray-200"><MdRadioButtonChecked size={14} /> PG</span>;
+  }
+};
+
+const formatCorrectAnswer = (answer, type) => {
+  if (type === "multi_select") {
+    try {
+      const parsed = JSON.parse(answer);
+      if (Array.isArray(parsed)) return parsed.join(", ");
+    } catch (e) { return answer; }
+  }
+  return answer;
+};
+
+// =============================================================================
+// MAIN TABLE COMPONENT
+// =============================================================================
+const DevelopmentTable = ({ header, data, getData, selectedQuiz, setSelectedQuiz }) => {
   const [isOpenDelete, setIsOpenDelete] = useState(false);
   const [isOpenCreate, setIsOpenCreate] = useState(false);
   const [isOpenEdit, setIsOpenEdit] = useState(false);
   const [isOpenUp, setIsOpenUp] = useState(false);
   const [selectedLayanan, setSelectedLayanan] = useState(null);
-  console.log("data di table", data);
+  
   const [currentPage, setCurrentPage] = useState(1);
-  function closeModalDelete() {
-    setIsOpenDelete(false);
-  }
-  function openModalDelete() {
-    setIsOpenDelete(true);
-  }
+  const [searchValue, setSearchValue] = useState(""); // State lokal untuk input search
 
-  function closeModalCreate() {
-    setIsOpenCreate(false);
-  }
-  function openModalCreate() {
-    setIsOpenCreate(true);
-  }
-  function closeModalEdit() {
-    setIsOpenEdit(false);
-  }
-  function openModalEdit() {
-    setIsOpenEdit(true);
-  }
-  function closeModalUp() {
-    setIsOpenUp(false);
-  }
-  function openModalUp() {
-    setIsOpenUp(true);
-  }
+  // Modal Handlers
+  const closeModalDelete = () => setIsOpenDelete(false);
+  const openModalDelete = () => setIsOpenDelete(true);
+  const closeModalCreate = () => setIsOpenCreate(false);
+  const openModalCreate = () => setIsOpenCreate(true);
+  const closeModalEdit = () => setIsOpenEdit(false);
+  const openModalEdit = () => setIsOpenEdit(true);
+  const closeModalUp = () => setIsOpenUp(false);
+  const openModalUp = () => setIsOpenUp(true);
 
+  // Template Download
   const downloadTemplate = () => {
-    // Header sesuai dengan yang diharapkan backend (adminController.go skip baris pertama)
-    // Kolom: Question, Option1, Option2, Option3, Option4, CorrectAnswer
-    const csvContent =
-      "Pertanyaan,Opsi A,Opsi B,Opsi C,Opsi D,Jawaban Benar,Hint\n" +
-      "Siapa penemu lampu?,Thomas Edison,Nikola Tesla,Albert Einstein,Isaac Newton,Thomas Edison,Tukang listrik terkenal\n";
-
+    const csvContent = "Question,Type,Options,CorrectAnswer,Hint\n" +
+      "Siapa penemu lampu?,mcq,\"Thomas Edison,Nikola Tesla,Einstein\",Thomas Edison,Ilmuwan terkenal\n" +
+      "Ibukota Indonesia?,short_answer,,Jakarta,Kota Metropolitan\n" +
+      "Bumi itu datar?,boolean,,Salah,\n" +
+      "Warna bendera RI?,multi_select,\"Merah,Putih,Biru,Kuning\",\"Merah,Putih\",Pilih dua warna";
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -75,17 +88,31 @@ const DevelopmentTable = ({ header, data, getData }) => {
     document.body.removeChild(link);
   };
 
+  // --- LOGIC SEARCH BARU (Min 3 Char) ---
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setSearchValue(val);
+
+    // Jika kosong atau >= 3 karakter, baru panggil API
+    if (val.length === 0 || val.length >= 3) {
+      getData(1, val, 30, selectedQuiz); // Reset ke page 1 saat search
+      setCurrentPage(1);
+    }
+  };
+
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
-    getData(newPage, undefined, 30);
+    getData(newPage, searchValue, 30, selectedQuiz); // Sertakan search value & filter saat pagination
   };
+
   return (
     <Card extra={"w-full h-full p-4"}>
+      {/* MODALS */}
       <ModalCreate
         closeModal={closeModalCreate}
         isOpen={isOpenCreate}
         getData={getData}
-        quizData={data.quiz}
+        quizData={data?.quiz || []}
         currentPage={currentPage}
       />
       <ModalUp
@@ -93,14 +120,14 @@ const DevelopmentTable = ({ header, data, getData }) => {
         isOpen={isOpenUp}
         getData={getData}
         currentPage={currentPage}
-        quizList={data.quiz}
+        quizList={data?.quiz || []}
       />
       <ModalEdit
         closeModal={closeModalEdit}
         isOpen={isOpenEdit}
         getData={getData}
         selectedLayanan={selectedLayanan}
-        quizData={data.quiz}
+        quizData={data?.quiz || []}
         currentPage={currentPage}
       />
       <ModalDelete
@@ -110,39 +137,56 @@ const DevelopmentTable = ({ header, data, getData }) => {
         selectedLayanan={selectedLayanan}
         currentPage={currentPage}
       />
-      <div className="relative flex items-center justify-between">
+      
+      {/* HEADER */}
+      <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div className="text-xl font-bold text-navy-700 dark:text-white">
           Question List
         </div>
-        <div className="flex lg:space-x-5">
-          <button
-            onClick={downloadTemplate}
-            className="flex items-center space-x-1 rounded-full bg-green-600 px-4 py-2 text-white drop-shadow-md transition-colors hover:bg-green-700"
-            title="Download Template CSV"
-          >
-            <DocumentDownload size={20} variant="Bulk" />
-            <p className="hidden sm:block">Template</p>
-          </button>
-          <button
-            onClick={openModalUp}
-            className="flex items-center space-x-1 rounded-full bg-brand-700 px-4 py-2 text-white drop-shadow-md hover:bg-white hover:text-brand-700 dark:bg-brand-400 dark:hover:bg-white dark:hover:text-brand-400"
-          >
-            <Import />
-            <p>Import</p>
-          </button>
-          <button
-            onClick={openModalCreate}
-            className="flex items-center space-x-1 rounded-full bg-brand-700 px-4 py-2 text-white drop-shadow-md hover:bg-white hover:text-brand-700 dark:bg-brand-400 dark:hover:bg-white dark:hover:text-brand-400"
-          >
-            <Add />
-            <p>Create</p>
-          </button>
-          <div className="flex h-full items-center rounded-full bg-lightPrimary py-3 text-navy-700 dark:bg-navy-900 dark:text-white xl:w-[225px]">
+        
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="flex gap-2">
+            <button onClick={downloadTemplate} className="flex items-center space-x-1 rounded-full bg-green-600 px-4 py-2 text-white drop-shadow-md hover:bg-green-700" title="Template CSV">
+              <DocumentDownload size={20} variant="Bulk" />
+              <p className="hidden sm:block">Template</p>
+            </button>
+            <button onClick={openModalUp} className="flex items-center space-x-1 rounded-full bg-brand-700 px-4 py-2 text-white drop-shadow-md hover:bg-white hover:text-brand-700 dark:bg-brand-400 dark:hover:bg-white dark:hover:text-brand-400">
+              <Import />
+              <p>Import</p>
+            </button>
+            <button onClick={openModalCreate} className="flex items-center space-x-1 rounded-full bg-brand-700 px-4 py-2 text-white drop-shadow-md hover:bg-white hover:text-brand-700 dark:bg-brand-400 dark:hover:bg-white dark:hover:text-brand-400">
+              <Add />
+              <p>Create</p>
+            </button>
+          </div>
+
+          {/* FILTER KUIS */}
+          <div className="relative min-w-[200px]">
+            <select
+              value={selectedQuiz}
+              onChange={(e) => {
+                  // Panggil setSelectedQuiz (dari props) untuk update state parent
+                  if(typeof setSelectedQuiz === 'function'){
+                      setSelectedQuiz(e.target.value);
+                  }
+              }}
+              className="h-full w-full rounded-full bg-lightPrimary px-4 py-2.5 text-sm font-medium text-navy-700 outline-none dark:bg-navy-900 dark:text-white cursor-pointer"
+            >
+              <option value="">Semua Kuis</option>
+              {data?.quiz?.map((q) => (
+                <option key={q.ID} value={q.ID}>{q.title}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* SEARCH BAR (LOGIC UPDATE) */}
+          <div className="flex h-full items-center rounded-full bg-lightPrimary py-2.5 text-navy-700 dark:bg-navy-900 dark:text-white xl:w-[225px]">
             <p className="pl-3 pr-2 text-xl">
               <FiSearch className="h-4 w-4 text-gray-400 dark:text-white" />
             </p>
             <input
-              onChange={(e) => getData(currentPage, e.target.value, 30)}
+              value={searchValue}
+              onChange={handleSearchChange} // Pakai handler baru
               type="text"
               placeholder="Search..."
               className="block h-full w-full rounded-full bg-lightPrimary text-sm font-medium text-navy-700 outline-none placeholder:!text-gray-400 dark:bg-navy-900 dark:text-white dark:placeholder:!text-white sm:w-fit"
@@ -150,114 +194,56 @@ const DevelopmentTable = ({ header, data, getData }) => {
           </div>
         </div>
       </div>
+
+      {/* TABLE CONTENT */}
       {data.loading ? (
         <div className="my-5 flex h-96 w-full items-center justify-center">
           <AiOutlineLoading3Quarters className="animate-spin text-5xl text-blueSecondary" />
         </div>
       ) : (
         <div className="h-full overflow-x-scroll">
-          <table
-            className="mt-8 h-max w-full"
-            variant="simple"
-            color="gray-500"
-            mb="24px"
-          >
+          <table className="mt-4 h-max w-full" variant="simple" color="gray-500" mb="24px">
             <thead>
               <tr>
-                {header?.map((data, i) => (
-                  <th
-                    key={i}
-                    className="border-b border-gray-200 pr-32 text-start dark:!border-navy-700"
-                  >
-                    <h1 className="text-xs font-bold tracking-wide text-gray-600">
-                      {data}
-                    </h1>
-                  </th>
-                ))}
+                <th className="border-b border-gray-200 pr-10 pb-2 text-start dark:!border-navy-700 text-xs font-bold text-gray-600">ID</th>
+                <th className="border-b border-gray-200 pr-10 pb-2 text-start dark:!border-navy-700 text-xs font-bold text-gray-600">Pertanyaan</th>
+                <th className="border-b border-gray-200 pr-10 pb-2 text-start dark:!border-navy-700 text-xs font-bold text-gray-600">Tipe</th>
+                <th className="border-b border-gray-200 pr-10 pb-2 text-start dark:!border-navy-700 text-xs font-bold text-gray-600">Opsi</th>
+                <th className="border-b border-gray-200 pr-10 pb-2 text-start dark:!border-navy-700 text-xs font-bold text-gray-600">Jawaban Benar</th>
+                <th className="border-b border-gray-200 pr-10 pb-2 text-start dark:!border-navy-700 text-xs font-bold text-gray-600">Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {data.data?.map((data, i) => (
+              {data.data?.map((row, i) => (
                 <tr key={i}>
-                  <td>
-                    <p className="my-3 mr-5 text-sm font-bold text-navy-700 dark:text-white">
-                      {i + 1}
-                    </p>
-                  </td>
-                  <td>
-                    <p className="my-3 mr-5 text-sm font-bold text-navy-700 dark:text-white">
-                      {data.question}
-                    </p>
-                  </td>
-                  {data.options?.map((data, i) => (
-                    <td key={i}>
-                      <p className="my-3 mr-5 text-sm font-bold text-navy-700 dark:text-white">
-                        {data}
-                      </p>
-                    </td>
-                  ))}
-                  <td>
-                    <p className="my-3 mr-5 text-sm font-bold text-navy-700 dark:text-white">
-                      Answer : Option {data.correct}
-                    </p>
-                  </td>
-                  <td>
-                    <button
-                      onClick={() => {
-                        setSelectedLayanan(data);
-                        openModalEdit();
-                      }}
-                      className="rounded-md bg-blue-500 px-4 py-1.5 hover:bg-blue-600 lg:mr-3"
-                    >
-                      <Edit className="h-4 w-4 text-white" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedLayanan(data);
-                        openModalDelete();
-                      }}
-                      className="rounded-md bg-red-500 px-4 py-1.5 hover:bg-red-600 md:mr-4 lg:mr-3"
-                    >
-                      <Trash className="h-4 w-4 text-white" />
-                    </button>
+                  <td className="pt-4 pb-4"><p className="text-sm font-bold text-navy-700 dark:text-white">{i + 1 + (currentPage - 1) * 30}</p></td>
+                  <td className="pt-4 pb-4"><p className="text-sm font-bold text-navy-700 dark:text-white truncate max-w-xs" title={row.question}>{row.question}</p></td>
+                  <td className="pt-4 pb-4">{getTypeBadge(row.type)}</td>
+                  <td className="pt-4 pb-4"><p className="text-sm text-gray-600 dark:text-white truncate max-w-xs">{row.options && row.options.length > 0 ? row.options.join(", ") : "-"}</p></td>
+                  <td className="pt-4 pb-4"><p className="text-sm font-bold text-green-600">{formatCorrectAnswer(row.correct, row.type)}</p></td>
+                  <td className="pt-4 pb-4 flex gap-2">
+                    <button onClick={() => { setSelectedLayanan(row); openModalEdit(); }} className="rounded-md bg-blue-500 px-3 py-1.5 hover:bg-blue-600 transition"><Edit className="h-4 w-4 text-white" /></button>
+                    <button onClick={() => { setSelectedLayanan(row); openModalDelete(); }} className="rounded-md bg-red-500 px-3 py-1.5 hover:bg-red-600 transition"><Trash className="h-4 w-4 text-white" /></button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {/* Pagination controls */}
-          {data.data.length > 0 && (
-            <div className="mt-4 flex items-center">
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="mr-2 rounded-full bg-blue-500 px-3 py-1 text-white"
-              >
-                Previous
-              </button>
-              <p className="mr-2 text-gray-600">
-                Page {currentPage} of {data.max}
-              </p>
-              <button
-                disabled={currentPage === data.max}
-                onClick={() => handlePageChange(currentPage + 1)}
-                className="rounded-full bg-blue-500 px-3 py-1 text-white"
-              >
-                Next
-              </button>
+
+          {data.data?.length > 0 && (
+            <div className="mt-4 flex items-center justify-between">
+              <p className="text-sm text-gray-600">Page {currentPage} of {data.max}</p>
+              <div className="flex gap-2">
+                <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium hover:bg-gray-200 disabled:opacity-50">Previous</button>
+                <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === data.max} className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50">Next</button>
+              </div>
             </div>
           )}
-          {data.data.length === 0 && (
-            <div className="flex justify-center">
+
+          {(!data.data || data.data.length === 0) && (
+            <div className="flex justify-center mt-10">
               <div className="w-1/4">
-                <Lottie
-                  options={{
-                    animationData: empty,
-                    rendererSettings: {
-                      preserveAspectRatio: "xMidYMid slice",
-                    },
-                  }}
-                />
+                <Lottie options={{ animationData: empty, rendererSettings: { preserveAspectRatio: "xMidYMid slice" } }} />
               </div>
             </div>
           )}
@@ -267,22 +253,25 @@ const DevelopmentTable = ({ header, data, getData }) => {
   );
 };
 
-export default DevelopmentTable;
+// ... (ModalUp, ModalCreate, ModalEdit, ModalDelete SAMA SEPERTI SEBELUMNYA)
+// Agar tidak terlalu panjang, saya asumsikan modal-modal di bawahnya sama persis 
+// dengan kode yang saya berikan di response sebelumnya (turn 17). 
+// Jika perlu diposting ulang full dari atas sampai bawah, beri tahu saya.
+
+// -- COPAS BAGIAN MODAL DI BAWAH SINI DARI RESPONSE SEBELUMNYA ATAU GABUNGKAN --
+// Berikut saya sertakan ModalUp yang sudah diperbaiki logic upload-nya (FormData)
+
 function ModalUp({ isOpen, closeModal, getData, currentPage, quizList }) {
-  const { register, handleSubmit, reset } = useForm();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState();
   const [selectedFile, setSelectedFile] = useState(null);
   const [quizId, setQuizId] = useState("");
-  console.log("quizList di modal up", quizList);
-  // Mengubah data quizList agar sesuai format OptionField
+  const fileInputRef = useRef(null);
 
-  // Fungsi untuk menangani perubahan file input
-  function getDocument(e) {
+  function handleFileChange(e) {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      // Validasi sederhana tipe file (opsional)
-      if (file.type !== "text/csv" && !file.name.endsWith(".csv")) {
+      if (!file.name.endsWith(".csv")) {
         setErrorMessage("Hanya file CSV yang diperbolehkan.");
         setSelectedFile(null);
         return;
@@ -292,647 +281,326 @@ function ModalUp({ isOpen, closeModal, getData, currentPage, quizList }) {
     }
   }
 
-  // Fungsi Submit ke Backend
-  async function onSubmit() {
-    if (!quizId) {
-      setErrorMessage("Harap pilih Kuis target terlebih dahulu.");
-      return;
-    }
-    if (!selectedFile) {
-      setErrorMessage("Harap pilih file CSV terlebih dahulu.");
-      return;
-    }
+  async function handleUpload() {
+    if (!quizId) return setErrorMessage("Pilih Kuis terlebih dahulu");
+    if (!selectedFile) return setErrorMessage("Pilih file CSV");
+
+    setIsLoading(true);
+    setErrorMessage(null);
 
     try {
-      setIsLoading(true);
-      setErrorMessage(null);
-
       const formData = new FormData();
-      formData.append("quiz_id", quizId); // Backend butuh 'quiz_id'
-      formData.append("file", selectedFile); // Backend butuh 'file'
+      formData.append("quiz_id", quizId);
+      formData.append("file", selectedFile);
 
-      // Menggunakan method postWithDocument untuk header multipart/form-data
       await api_service.postWithDocument("/admin/questions/bulk", formData);
 
-      // Refresh data tabel & reset modal
       setIsLoading(false);
       getData(currentPage, undefined, 30);
       closeModal();
-      reset();
       setSelectedFile(null);
       setQuizId("");
     } catch (er) {
-      // Menangani error dari backend
-      const msg =
-        er.response?.data?.message || er.message || "Gagal mengupload file";
+      const msg = er.response?.data?.message || er.message || "Gagal mengupload file";
       setErrorMessage(msg);
       setIsLoading(false);
-      console.error(er);
     }
   }
 
-  // Reset state saat modal dibuka/tutup
   useEffect(() => {
     if (isOpen) {
-      reset();
       setSelectedFile(null);
       setErrorMessage(null);
       setQuizId("");
     }
-  }, [isOpen, reset]);
+  }, [isOpen]);
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-[99]" onClose={closeModal}>
-        {/* Overlay Gelap */}
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="bg-black/50 fixed inset-0" />
-        </Transition.Child>
-
+        <div className="fixed inset-0 bg-black/50" />
         <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4 text-center">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300"
-              enterFrom="opacity-0 scale-95"
-              enterTo="opacity-100 scale-100"
-              leave="ease-in duration-200"
-              leaveFrom="opacity-100 scale-100"
-              leaveTo="opacity-0 scale-95"
-            >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-                {errorMessage && <Alert message={errorMessage} />}
-
-                <Dialog.Title
-                  as="h3"
-                  className="mb-5 text-lg font-bold leading-6 text-gray-900"
-                >
-                  Import Questions (CSV)
-                </Dialog.Title>
-
-                <form onSubmit={handleSubmit(onSubmit)}>
-                  {/* Dropdown Pilih Quiz */}
-                  <div className="mb-4">
-                    <OptionField
-                      label="Pilih Kuis Target"
-                      name="quiz_id"
-                      value={quizId}
-                      data={quizList}
-                      placeholder="Pilih Kuis..."
-                      handleChange={(e) => setQuizId(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Area Upload File */}
-                  <button
-                    type="button"
-                    className={`relative mt-2 flex h-32 w-full items-center justify-center rounded-lg border-2 border-dashed ${
-                      errorMessage
-                        ? "border-red-300 bg-red-50"
-                        : "border-blue-300 bg-blue-50"
-                    }`}
-                  >
-                    <input
-                      accept=".csv"
-                      onChange={getDocument}
-                      type="file"
-                      className="absolute z-10 mt-3 h-full w-full cursor-pointer opacity-0"
-                    />
-                    <div className="text-center">
-                      <p
-                        className={`text-sm ${
-                          selectedFile
-                            ? "font-bold text-blue-600"
-                            : "text-blue-500"
-                        }`}
-                      >
-                        {selectedFile
-                          ? selectedFile.name
-                          : "Klik untuk upload CSV"}
-                      </p>
-                      {!selectedFile && (
-                        <p className="mt-1 text-xs text-gray-400">
-                          Format: .csv only
-                        </p>
-                      )}
-                    </div>
-                  </button>
-
-                  <p className="mt-3 text-xs text-gray-500">
-                    Format CSV (tanpa header):
-                    <br />
-                    <code>
-                      Pertanyaan, Opsi A, Opsi B, Opsi C, Opsi D, Jawaban Benar
-                    </code>
-                  </p>
-
-                  {/* Tombol Aksi */}
-                  <div className="mt-6 flex justify-end gap-3">
-                    <button
-                      type="button"
-                      className="border-transparent rounded-md border bg-red-100 px-4 py-2 text-sm font-medium text-red-900 hover:bg-red-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-                      onClick={closeModal}
-                    >
-                      Batal
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isLoading || !selectedFile || !quizId}
-                      className={`border-transparent flex justify-center rounded-md border px-4 py-2 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
-                        isLoading || !selectedFile || !quizId
-                          ? "cursor-not-allowed bg-gray-100 text-gray-400"
-                          : "bg-blue-100 text-blue-900 hover:bg-blue-200"
-                      }`}
-                    >
-                      {isLoading ? (
-                        <AiOutlineLoading3Quarters className="animate-spin text-lg" />
-                      ) : (
-                        "Upload"
-                      )}
-                    </button>
-                  </div>
-                </form>
-              </Dialog.Panel>
-            </Transition.Child>
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 shadow-xl transition-all">
+              {errorMessage && <Alert message={errorMessage} />}
+              <Dialog.Title as="h3" className="mb-4 text-lg font-bold text-gray-900">Import Soal (CSV)</Dialog.Title>
+              <div className="space-y-4">
+                <OptionField label="Pilih Kuis Target" name="quiz_id" value={quizId} data={quizList} placeholder="Pilih Kuis..." handleChange={(e) => setQuizId(e.target.value)} />
+                <div onClick={() => fileInputRef.current.click()} className="flex h-32 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100">
+                  <p className="text-sm font-bold text-gray-500">{selectedFile ? selectedFile.name : "Klik untuk upload (.csv)"}</p>
+                  <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileChange} />
+                </div>
+              </div>
+              <div className="mt-6 flex justify-end gap-3">
+                <button onClick={closeModal} className="rounded-md bg-gray-100 px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-200">Batal</button>
+                <button onClick={handleUpload} disabled={isLoading || !selectedFile} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50">{isLoading ? <AiOutlineLoading3Quarters className="animate-spin" /> : "Upload"}</button>
+              </div>
+            </Dialog.Panel>
           </div>
         </div>
       </Dialog>
     </Transition>
   );
 }
-function ModalEdit({
-  isOpen,
-  closeModal,
-  getData,
-  selectedLayanan,
-  currentPage,
-  quizData,
-}) {
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-  } = useForm({ resolver: yupResolver(schema) });
-  console.log("selectedLayanan edit", selectedLayanan);
 
+function ModalCreate({ isOpen, closeModal, getData, currentPage, quizData }) {
+  const { register, handleSubmit, reset } = useForm({ resolver: yupResolver(schema) });
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState();
-  const [options, setOptions] = useState([]);
-  const [disable, setDisable] = useState(true);
+  const [type, setType] = useState("mcq");
+  const [options, setOptions] = useState([{ title: "" }, { title: "" }, { title: "" }, { title: "" }]);
+  const [quizId, setQuizId] = useState("");
   const [correctAnswer, setCorrectAnswer] = useState("");
-  const [quizId, setQuizId] = useState(0);
+  const [multiCorrect, setMultiCorrect] = useState([]); 
+
+  useEffect(() => {
+    if (isOpen) {
+      reset();
+      setOptions([{ title: "" }, { title: "" }, { title: "" }, { title: "" }]);
+      setCorrectAnswer("");
+      setMultiCorrect([]);
+      setType("mcq");
+      setQuizId("");
+    }
+  }, [isOpen, reset]);
+
+  const handleTypeChange = (e) => {
+    const newType = e.target.value;
+    setType(newType);
+    setCorrectAnswer("");
+    setMultiCorrect([]);
+    if (newType === 'boolean') { setOptions([{ title: "Benar" }, { title: "Salah" }]); }
+    else if (newType === 'short_answer') { setOptions([]); }
+    else { setOptions([{ title: "" }, { title: "" }, { title: "" }, { title: "" }]); }
+  };
+
+  const handleOptionChange = (index, value) => {
+    const newOptions = [...options];
+    newOptions[index] = { title: value };
+    setOptions(newOptions);
+  };
+
+  const toggleMultiCorrect = (val) => {
+    if (multiCorrect.includes(val)) { setMultiCorrect(multiCorrect.filter(i => i !== val)); }
+    else { setMultiCorrect([...multiCorrect, val]); }
+  };
 
   async function onSubmit(data) {
+    if (!quizId) return setErrorMessage("Harap pilih Quiz.");
+    let finalCorrect = correctAnswer;
+    let finalOptions = options.map(o => o.title);
+
+    if (type === 'multi_select') {
+      if (multiCorrect.length === 0) return setErrorMessage("Pilih minimal 1 jawaban benar.");
+      finalCorrect = JSON.stringify(multiCorrect);
+    } else if (type === 'short_answer') {
+      if (!correctAnswer) return setErrorMessage("Jawaban benar wajib diisi.");
+      finalOptions = [];
+    } else {
+      if (!correctAnswer) return setErrorMessage("Pilih jawaban benar.");
+    }
+
     try {
       setIsLoading(true);
-
       const payload = {
         quiz_id: parseInt(quizId),
         question: data.title,
-        hint: data.hint,
-        options: options.map((option) => option.title),
-        correct: correctAnswer,
+        type: type,
+        options: finalOptions,
+        correct: finalCorrect,
+        hint: data.hint || "",
       };
-
-      // Endpoint Update: /admin/questions/:id
-      // Menggunakan ID dari selectedLayanan
-      await api_service.put(`/admin/questions/${selectedLayanan.ID}`, payload);
-
+      await api_service.post("/admin/questions", payload);
       setIsLoading(false);
       getData(currentPage, undefined, 30);
       closeModal();
-      reset();
     } catch (er) {
-      setErrorMessage(er.message || "Gagal memperbarui soal");
+      setErrorMessage(er.response?.data?.message || "Gagal membuat soal");
       setIsLoading(false);
-      console.log(er);
     }
   }
-  useEffect(() => {
-    const areOptionsEmpty = options.some(
-      (option) => (option.title || "").trim() === ""
-    );
-    if (areOptionsEmpty || correctAnswer == "") {
-      setDisable(true);
-    } else {
-      setDisable(false);
-    }
-  }, [options, correctAnswer]);
-  useEffect(() => {
-    reset();
-    setOptions(["", "", ""]);
-  }, [isOpen, reset]);
 
-  const handleOptionChange = (index, value) => {
-    const newOptions = [...options];
-    newOptions[index] = value;
-    setOptions(newOptions);
-  };
-
-  function handleChange(e) {
-    setCorrectAnswer(e.target.value);
-  }
-
-  function handleChangeQuiz(e) {
-    setQuizId(e.target.value);
-  }
-
-  useEffect(() => {
-    if (isOpen) {
-      const newOptions = selectedLayanan.options.map((option) => ({
-        title: option,
-      }));
-      setOptions(newOptions);
-      setCorrectAnswer(selectedLayanan?.correct);
-      setQuizId(selectedLayanan?.quiz_id);
-    }
-  }, [isOpen, selectedLayanan]);
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-[99]" onClose={closeModal}>
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-[#000000] bg-opacity-50" />
-        </Transition.Child>
-
+        <div className="fixed inset-0 bg-black/50" />
         <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4 text-center">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300"
-              enterFrom="opacity-0 scale-95"
-              enterTo="opacity-100 scale-100"
-              leave="ease-in duration-200"
-              leaveFrom="opacity-100 scale-100"
-              leaveTo="opacity-0 scale-95"
-            >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-                {errorMessage && <Alert message={errorMessage} />}
-                <Dialog.Title
-                  as="h3"
-                  className="mb-5 text-lg font-bold leading-6 text-gray-900"
-                >
-                  Edit Question
-                </Dialog.Title>
-                <form onSubmit={handleSubmit(onSubmit)}>
-                  <InputField
-                    label="Judul"
-                    register={register}
-                    value={selectedLayanan?.question}
-                    name="title"
-                    extra="mb-1"
-                  />
-                  {errors?.question && (
-                    <p className="text-sm italic text-red-500">
-                      Pertanyaan tidak boleh kosong
-                    </p>
-                  )}
-                  <InputField
-                    label="Hint"
-                    register={register}
-                    value={selectedLayanan?.hint}
-                    name="hint"
-                    extra="mb-1"
-                  />
-                  {options.map((option, index) => (
-                    <div key={index} className="mb-4">
-                      {/* <label className="block">
-                        <span className="text-lg font-bold">
-                          Option {index + 1}:
-                        </span>
-                        <input
-                          className="mt-2 w-full rounded-md border p-2"
-                          type="text"
-                          value={option}
-                          onChange={(e) =>
-                            handleOptionChange(index, e.target.value)
-                          }
-                        />
-                      </label> */}
-                      <InputField
-                        label={`Option ${index + 1}:`}
-                        register={register}
-                        value={option.title}
-                        name={`option${index + 1}`}
-                        extra="mb-1"
-                        onChange={(value) =>
-                          handleOptionChange(index, { title: value })
-                        }
-                      />
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Dialog.Panel className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white p-6 shadow-xl transition-all">
+              {errorMessage && <Alert message={errorMessage} />}
+              <Dialog.Title as="h3" className="mb-4 text-lg font-bold text-gray-900">Buat Soal Baru</Dialog.Title>
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                <OptionField label="Pilih Kuis" name="quiz_id" value={quizId} data={quizData} placeholder="Pilih Kuis..." handleChange={(e) => setQuizId(e.target.value)} />
+                <div>
+                  <label className="text-sm font-bold text-navy-700">Tipe Soal</label>
+                  <select className="mt-1 w-full rounded-xl border border-gray-200 p-3 text-sm" value={type} onChange={handleTypeChange}>
+                    <option value="mcq">Pilihan Ganda (MCQ)</option>
+                    <option value="short_answer">Isian Singkat</option>
+                    <option value="boolean">Benar / Salah</option>
+                    <option value="multi_select">Multi Select</option>
+                  </select>
+                </div>
+                <InputField label="Pertanyaan" register={register} name="title" extra="mb-1" />
+                <InputField label="Hint / Penjelasan" register={register} name="hint" extra="mb-1" />
+                <div className="rounded-xl border bg-gray-50 p-4">
+                  <p className="mb-2 text-sm font-bold">Opsi & Jawaban</p>
+                  {type === 'short_answer' && (<div className="mt-2"><label className="text-xs text-gray-500">Kunci Jawaban (Teks)</label><input type="text" className="w-full rounded-md border p-2 text-sm" placeholder="Contoh: Jakarta" value={correctAnswer} onChange={(e) => setCorrectAnswer(e.target.value)} /></div>)}
+                  {(type === 'mcq' || type === 'multi_select') && options.map((opt, i) => (
+                    <div key={i} className="flex items-center gap-2 mb-2">
+                      {type === 'mcq' ? (
+                        <input type="radio" name="mcq_ans" checked={correctAnswer === opt.title && opt.title !== ""} onChange={() => setCorrectAnswer(opt.title)} disabled={!opt.title} className="cursor-pointer" />
+                      ) : (
+                        <input type="checkbox" checked={multiCorrect.includes(opt.title) && opt.title !== ""} onChange={() => toggleMultiCorrect(opt.title)} disabled={!opt.title} className="cursor-pointer" />
+                      )}
+                      <input type="text" className="flex-1 rounded-md border p-2 text-sm" placeholder={`Opsi ${i+1}`} value={opt.title} onChange={(e) => handleOptionChange(i, e.target.value)} />
                     </div>
                   ))}
-                  {/* <label className="mb-4 block">
-                    <span className="text-lg font-bold">Correct Answer:</span>
-                    <select
-                      className="mt-2 w-full rounded-md border p-2"
-                      value={correctAnswer}
-                      onChange={(e) => setCorrectAnswer(e.target.value)}
-                    >
-                      <option value="">Select Correct Answer</option>
-                      {options.map((option, index) => (
-                        <option key={index} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </label> */}
-                  <OptionField
-                    value={correctAnswer}
-                    // defaultValue={selectedLayanan?.correct}
-                    data={options}
-                    name="correct"
-                    placeholder="Pilih Jawaban"
-                    label="Pilih Jawaban"
-                    handleChange={handleChange}
-                  />
-                  <OptionField
-                    value={quizId}
-                    // defaultValue={selectedLayanan?.correct}
-
-                    data={quizData}
-                    name="quiz_id"
-                    placeholder="Pilih Quiz"
-                    label="Pilih Quiz"
-                    handleChange={handleChangeQuiz}
-                  />
-                  <div className="mt-4 flex items-center">
-                    <button
-                      type="button"
-                      className="border-transparent mr-5 justify-center rounded-md border bg-red-500 px-4 py-2 text-sm font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-                      onClick={closeModal}
-                    >
-                      Cancel
-                    </button>
-                    <button className="border-transparent flex justify-center rounded-md border bg-blue-100 px-4 py-2 text-sm font-medium text-blue-900 hover:bg-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
-                      {isLoading ? (
-                        <AiOutlineLoading3Quarters className="animate-spin text-xl" />
-                      ) : (
-                        "Submit"
-                      )}
-                    </button>
-                  </div>
-                </form>
-              </Dialog.Panel>
-            </Transition.Child>
+                  {type === 'boolean' && (<div className="flex gap-4 mt-2">{["Benar", "Salah"].map(opt => (<label key={opt} className="flex items-center gap-2 cursor-pointer"><input type="radio" name="bool_ans" value={opt} checked={correctAnswer === opt} onChange={() => setCorrectAnswer(opt)} /><span>{opt}</span></label>))}</div>)}
+                </div>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button type="button" onClick={closeModal} className="rounded-md bg-gray-100 px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-200">Cancel</button>
+                  <button type="submit" disabled={isLoading} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">{isLoading ? <AiOutlineLoading3Quarters className="animate-spin" /> : "Submit"}</button>
+                </div>
+              </form>
+            </Dialog.Panel>
           </div>
         </div>
       </Dialog>
     </Transition>
   );
 }
-function ModalCreate({ isOpen, closeModal, getData, currentPage, quizData }) {
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-  } = useForm({ resolver: yupResolver(schema) });
+
+function ModalEdit({ isOpen, closeModal, getData, selectedLayanan, currentPage, quizData }) {
+  const { register, handleSubmit, reset } = useForm({ resolver: yupResolver(schema) });
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState();
-  const [options, setOptions] = useState([
-    { title: "" },
-    { title: "" },
-    { title: "" },
-    { title: "" },
-  ]);
-  const [quizId, setQuizId] = useState(0);
-  const [disable, setDisable] = useState(true);
+  const [type, setType] = useState("mcq");
+  const [options, setOptions] = useState([]);
+  const [quizId, setQuizId] = useState("");
   const [correctAnswer, setCorrectAnswer] = useState("");
+  const [multiCorrect, setMultiCorrect] = useState([]);
 
-  async function onSubmit(data) {
-    // Validasi Quiz ID & Jawaban Benar
-    if (!quizId) {
-      setErrorMessage("Harap pilih Quiz terlebih dahulu.");
-      return;
-    }
-    if (!correctAnswer) {
-      setErrorMessage("Harap tentukan jawaban yang benar.");
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-
-      // Sesuaikan payload dengan struktur Struct Question di Backend Go
-      const payload = {
-        quiz_id: parseInt(quizId),
-        question: data.title, // Mapping dari input 'title' ke 'question'
-        options: options.map((option) => option.title), // Array string
-        correct: correctAnswer, // String jawaban benar
-        hint: "", // Opsional, kirim string kosong jika tidak ada input hint
-      };
-
-      // Endpoint Create Question
-      await api_service.post("/admin/questions", payload);
-
-      setIsLoading(false);
-      getData(currentPage, undefined, 30);
-      closeModal();
-      reset();
-
-      // Reset state lokal
-      setOptions([{ title: "" }, { title: "" }, { title: "" }, { title: "" }]);
-      setCorrectAnswer("");
-      setQuizId("");
-    } catch (er) {
-      setErrorMessage(er.data?.message || "Gagal membuat soal");
-      setIsLoading(false);
-      console.log(er);
-    }
-  }
   useEffect(() => {
-    const areOptionsEmpty = options.some(
-      (option) => (option.title || "").trim() === ""
-    );
-    if (areOptionsEmpty || correctAnswer == "") {
-      setDisable(true);
-    } else {
-      setDisable(false);
+    if (isOpen && selectedLayanan) {
+      setQuizId(selectedLayanan.quiz_id);
+      setType(selectedLayanan.type || "mcq");
+      reset({ title: selectedLayanan.question, hint: selectedLayanan.hint });
+      if (selectedLayanan.options && Array.isArray(selectedLayanan.options)) {
+        setOptions(selectedLayanan.options.map(opt => ({ title: opt })));
+      } else {
+        setOptions([{ title: "" }, { title: "" }, { title: "" }, { title: "" }]);
+      }
+      if (selectedLayanan.type === 'multi_select') {
+        try {
+          const parsed = JSON.parse(selectedLayanan.correct);
+          setMultiCorrect(Array.isArray(parsed) ? parsed : []);
+        } catch (e) { setMultiCorrect([]); }
+      } else {
+        setCorrectAnswer(selectedLayanan.correct);
+      }
     }
-  }, [options, correctAnswer]);
-  useEffect(() => {
-    reset();
-    setOptions(["", "", "", ""]);
-  }, [isOpen, reset]);
+  }, [isOpen, selectedLayanan, reset]);
+
+  const handleTypeChange = (e) => {
+    const newType = e.target.value;
+    setType(newType);
+    if (newType === 'boolean') { setOptions([{ title: "Benar" }, { title: "Salah" }]); setCorrectAnswer("Benar"); }
+    else if (newType === 'short_answer') { setOptions([]); setCorrectAnswer(""); }
+    else { setOptions([{ title: "" }, { title: "" }, { title: "" }, { title: "" }]); setCorrectAnswer(""); setMultiCorrect([]); }
+  };
 
   const handleOptionChange = (index, value) => {
     const newOptions = [...options];
-    newOptions[index] = value;
+    newOptions[index] = { title: value };
     setOptions(newOptions);
   };
 
-  function handleChange(e) {
-    setCorrectAnswer(e.target.value);
+  const toggleMultiCorrect = (val) => {
+    if (multiCorrect.includes(val)) { setMultiCorrect(multiCorrect.filter(i => i !== val)); }
+    else { setMultiCorrect([...multiCorrect, val]); }
+  };
+
+  async function onSubmit(data) {
+    let finalCorrect = correctAnswer;
+    let finalOptions = options.map(o => o.title);
+    if (type === 'multi_select') {
+      if (multiCorrect.length === 0) return setErrorMessage("Pilih minimal 1 jawaban benar.");
+      finalCorrect = JSON.stringify(multiCorrect);
+    } else if (type === 'short_answer') {
+      if (!correctAnswer) return setErrorMessage("Jawaban benar wajib diisi.");
+      finalOptions = [];
+    }
+    try {
+      setIsLoading(true);
+      const payload = {
+        quiz_id: parseInt(quizId),
+        question: data.title,
+        type: type,
+        options: finalOptions,
+        correct: finalCorrect,
+        hint: data.hint || "",
+      };
+      await api_service.put(`/admin/questions/${selectedLayanan.ID}`, payload);
+      setIsLoading(false);
+      getData(currentPage, undefined, 30);
+      closeModal();
+    } catch (er) {
+      setErrorMessage(er.response?.data?.message || "Gagal update soal");
+      setIsLoading(false);
+    }
   }
 
-  function handleChangeQuiz(e) {
-    setQuizId(e.target.value);
-  }
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-[99]" onClose={closeModal}>
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-[#000000] bg-opacity-50" />
-        </Transition.Child>
-
+        <div className="fixed inset-0 bg-black/50" />
         <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4 text-center">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300"
-              enterFrom="opacity-0 scale-95"
-              enterTo="opacity-100 scale-100"
-              leave="ease-in duration-200"
-              leaveFrom="opacity-100 scale-100"
-              leaveTo="opacity-0 scale-95"
-            >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-                {errorMessage && <Alert message={errorMessage} />}
-                <Dialog.Title
-                  as="h3"
-                  className="mb-5 text-lg font-bold leading-6 text-gray-900"
-                >
-                  Create Question
-                </Dialog.Title>
-                <form onSubmit={handleSubmit(onSubmit)}>
-                  <InputField
-                    label="Judul Question"
-                    register={register}
-                    name="title"
-                    extra="mb-1"
-                  />
-                  {errors?.nama && (
-                    <p className="text-sm italic text-red-500">
-                      Nama layanan tidak boleh kosong
-                    </p>
-                  )}
-                  {options.map((option, index) => (
-                    <div key={index} className="mb-4">
-                      {/* <label className="block">
-                        <span className="text-lg font-bold">
-                          Option {index + 1}:
-                        </span>
-                        <input
-                          className="mt-2 w-full rounded-md border p-2"
-                          type="text"
-                          value={option}
-                          onChange={(e) =>
-                            handleOptionChange(index, e.target.value)
-                          }
-                        />
-                      </label> */}
-                      <InputField
-                        label={`Option ${index + 1}:`}
-                        register={register}
-                        value={option}
-                        name={`option${index + 1}`}
-                        extra="mb-1"
-                        onChange={(value) =>
-                          handleOptionChange(index, { title: value })
-                        }
-                      />
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Dialog.Panel className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white p-6 shadow-xl transition-all">
+              {errorMessage && <Alert message={errorMessage} />}
+              <Dialog.Title as="h3" className="mb-4 text-lg font-bold text-gray-900">Edit Soal</Dialog.Title>
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                <OptionField label="Kuis" name="quiz_id" value={quizId} data={quizData} handleChange={(e) => setQuizId(e.target.value)} />
+                <div>
+                  <label className="text-sm font-bold text-navy-700">Tipe Soal</label>
+                  <select className="mt-1 w-full rounded-xl border border-gray-200 p-3 text-sm" value={type} onChange={handleTypeChange}>
+                    <option value="mcq">Pilihan Ganda (MCQ)</option>
+                    <option value="short_answer">Isian Singkat</option>
+                    <option value="boolean">Benar / Salah</option>
+                    <option value="multi_select">Multi Select</option>
+                  </select>
+                </div>
+                <InputField label="Pertanyaan" register={register} name="title" extra="mb-1" />
+                <InputField label="Hint" register={register} name="hint" extra="mb-1" />
+                <div className="rounded-xl border bg-gray-50 p-4">
+                  <p className="mb-2 text-sm font-bold">Opsi & Jawaban</p>
+                  {type === 'short_answer' && (<div className="mt-2"><label className="text-xs text-gray-500">Kunci Jawaban</label><input type="text" className="w-full rounded-md border p-2 text-sm" value={correctAnswer} onChange={(e) => setCorrectAnswer(e.target.value)} /></div>)}
+                  {(type === 'mcq' || type === 'multi_select') && options.map((opt, i) => (
+                    <div key={i} className="flex items-center gap-2 mb-2">
+                      {type === 'mcq' ? (
+                        <input type="radio" name="mcq_ans_edit" checked={correctAnswer === opt.title && opt.title !== ""} onChange={() => setCorrectAnswer(opt.title)} className="cursor-pointer" />
+                      ) : (
+                        <input type="checkbox" checked={multiCorrect.includes(opt.title) && opt.title !== ""} onChange={() => toggleMultiCorrect(opt.title)} className="cursor-pointer" />
+                      )}
+                      <input type="text" className="flex-1 rounded-md border p-2 text-sm" value={opt.title} onChange={(e) => handleOptionChange(i, e.target.value)} />
                     </div>
                   ))}
-                  {/* <label className="mb-4 block">
-                    <span className="text-lg font-bold">Correct Answer:</span>
-                    <select
-                      className="mt-2 w-full rounded-md border p-2"
-                      value={correctAnswer}
-                      onChange={(e) => setCorrectAnswer(e.target.value)}
-                    >
-                      <option value="">Select Correct Answer</option>
-                      {options.map((option, index) => (
-                        <option key={index} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </label> */}
-                  <OptionField
-                    value={correctAnswer}
-                    data={options}
-                    name={"correctOptionIndex"}
-                    placeholder={"Pilih Jawaban"}
-                    label={"Pilih Jawaban"}
-                    loading={options.some(
-                      (option) => (option.title || "").trim() === ""
-                    )}
-                    handleChange={handleChange}
-                  />
-                  <OptionField
-                    value={quizId}
-                    data={quizData}
-                    name={"quiz_id"}
-                    placeholder={"Pilih Quiz"}
-                    label={"Pilih Quiz"}
-                    loading={options.some(
-                      (quizData) => (quizData.title || "").trim() === ""
-                    )}
-                    handleChange={handleChangeQuiz}
-                  />
-                  <div className="mt-4 flex items-center">
-                    <button
-                      type="button"
-                      className="border-transparent mr-5 justify-center rounded-md border bg-red-500 px-4 py-2 text-sm font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-                      onClick={closeModal}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      disabled={disable}
-                      className={`border-transparent flex justify-center rounded-md border ${
-                        disable
-                          ? "cursor-not-allowed bg-gray-300 text-gray-700"
-                          : "bg-blue-100 text-blue-900 hover:bg-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                      } px-4 py-2 text-sm font-medium `}
-                    >
-                      {isLoading ? (
-                        <AiOutlineLoading3Quarters className="animate-spin text-xl" />
-                      ) : (
-                        "Submit"
-                      )}
-                    </button>
-                  </div>
-                </form>
-              </Dialog.Panel>
-            </Transition.Child>
+                  {type === 'boolean' && (<div className="flex gap-4 mt-2">{["Benar", "Salah"].map(opt => (<label key={opt} className="flex items-center gap-2 cursor-pointer"><input type="radio" name="bool_ans_edit" value={opt} checked={correctAnswer === opt} onChange={() => setCorrectAnswer(opt)} /><span>{opt}</span></label>))}</div>)}
+                </div>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button type="button" onClick={closeModal} className="rounded-md bg-gray-100 px-4 py-2 text-sm font-bold text-gray-600">Cancel</button>
+                  <button type="submit" disabled={isLoading} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">{isLoading ? <AiOutlineLoading3Quarters className="animate-spin" /> : "Save Changes"}</button>
+                </div>
+              </form>
+            </Dialog.Panel>
           </div>
         </div>
       </Dialog>
     </Transition>
   );
 }
-function ModalDelete({
-  isOpen,
-  closeModal,
-  selectedLayanan,
-  getData,
-  currentPage,
-}) {
+
+function ModalDelete({ isOpen, closeModal, selectedLayanan, getData, currentPage }) {
   const [isLoading, setIsLoading] = useState(false);
   async function deleteDesa(id) {
     try {
@@ -949,64 +617,23 @@ function ModalDelete({
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-[99]" onClose={closeModal}>
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-[#000000] bg-opacity-50" />
-        </Transition.Child>
-
+        <div className="fixed inset-0 bg-black/50" />
         <div className="fixed inset-0 overflow-y-auto">
           <div className="flex min-h-full items-center justify-center p-4 text-center">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300"
-              enterFrom="opacity-0 scale-95"
-              enterTo="opacity-100 scale-100"
-              leave="ease-in duration-200"
-              leaveFrom="opacity-100 scale-100"
-              leaveTo="opacity-0 scale-95"
-            >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-                <Dialog.Title
-                  as="h3"
-                  className="text-lg font-medium leading-6 text-gray-900"
-                >
-                  Apakah anda yakin ingin menghapus{" "}
-                  <span className="font-black">
-                    ' {selectedLayanan?.question} '
-                  </span>
-                </Dialog.Title>
-                <div className="mt-4 flex items-center">
-                  <button
-                    type="button"
-                    className="border-transparent mr-5 justify-center rounded-md border bg-red-500 px-4 py-2 text-sm font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-                    onClick={closeModal}
-                  >
-                    Tidak
-                  </button>
-                  <button
-                    onClick={() => deleteDesa(selectedLayanan?.ID)}
-                    type="button"
-                    className="border-transparent flex justify-center rounded-md border bg-blue-100 px-4 py-2 text-sm font-medium text-blue-900 hover:bg-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                  >
-                    {isLoading ? (
-                      <AiOutlineLoading3Quarters className="animate-spin text-xl" />
-                    ) : (
-                      "Ya"
-                    )}
-                  </button>
-                </div>
-              </Dialog.Panel>
-            </Transition.Child>
+            <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+              <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900">
+                Apakah anda yakin ingin menghapus <span className="font-black">'{selectedLayanan?.question}'</span>?
+              </Dialog.Title>
+              <div className="mt-4 flex items-center justify-end gap-3">
+                <button type="button" className="rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300" onClick={closeModal}>Batal</button>
+                <button onClick={() => deleteDesa(selectedLayanan?.ID)} type="button" className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">{isLoading ? <AiOutlineLoading3Quarters className="animate-spin" /> : "Hapus"}</button>
+              </div>
+            </Dialog.Panel>
           </div>
         </div>
       </Dialog>
     </Transition>
   );
 }
+
+export default DevelopmentTable;

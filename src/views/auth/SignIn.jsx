@@ -41,7 +41,7 @@ export default function SignIn() {
       if (res.status === "success" && res.data && res.data.token) {
         localStorage.setItem("token", res.data.token);
         localStorage.setItem("user", JSON.stringify(res.data.user)); 
-        navigate("/admin/default", { replace: true });
+        navigate("/admin/dashboard", { replace: true });
       } else {
         setErrorPassword("Login gagal, respons token tidak valid.");
       }
