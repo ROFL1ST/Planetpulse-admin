@@ -10,14 +10,14 @@ import {
 const Broadcast = () => {
   const [formData, setFormData] = useState({
     title: "",
-    message: "",
+    content: "",
     type: "info",
   });
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.title || !formData.message) {
+    if (!formData.title || !formData.content) {
       toast.error("Judul dan Pesan wajib diisi");
       return;
     }
@@ -27,7 +27,7 @@ const Broadcast = () => {
       const res = await api_service.post("/admin/broadcast", formData);
       if (res.status === "success" || res.data?.status === "success") {
         toast.success("Pengumuman berhasil disiarkan!");
-        setFormData({ title: "", message: "", type: "info" });
+        setFormData({ title: "", content: "", type: "info" });
       } else {
         toast.error(res.data?.message || "Gagal menyiarkan pengumuman");
       }
@@ -92,9 +92,9 @@ const Broadcast = () => {
                 rows="4"
                 className="w-full rounded-xl border border-gray-200 bg-white/0 p-3 text-sm outline-none focus:border-brand-500 dark:border-white/10 dark:text-white"
                 placeholder="Tulis pesan pengumuman di sini..."
-                value={formData.message}
+                value={formData.content}
                 onChange={(e) =>
-                  setFormData({ ...formData, message: e.target.value })
+                  setFormData({ ...formData, content: e.target.value })
                 }
               />
             </div>

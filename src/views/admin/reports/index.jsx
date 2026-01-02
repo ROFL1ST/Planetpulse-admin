@@ -113,31 +113,28 @@ const Reports = () => {
                     </td>
                     <td className="min-w-[150px] border-b-[1px] border-white/40 pb-[18px] pt-[14px] sm:text-[14px]">
                       <p className="text-sm font-bold text-navy-700 dark:text-white">
-                        {row.Reporter?.name || `User ${row.ReporterID}`}
+                        {row.reporter?.username || `User ${row.reporter_id}`}
                       </p>
                     </td>
                     <td className="min-w-[150px] border-b-[1px] border-white/40 pb-[18px] pt-[14px] sm:text-[14px]">
                       <div className="flex flex-col">
                         <span className="text-sm font-bold text-navy-700 dark:text-white">
-                          {row.TargetType}
+                          {row.target_detail}
                         </span>
-                        <span className="text-xs text-gray-500">
-                          ID: {row.TargetID}
+                        <span className="text-xs capitalize text-gray-500">
+                          {row.target_type} (#{row.target_id})
                         </span>
                       </div>
                     </td>
                     <td className="min-w-[200px] border-b-[1px] border-white/40 pb-[18px] pt-[14px] sm:text-[14px]">
                       <div className="flex flex-col">
                         <span className="text-sm font-bold text-navy-700 dark:text-white">
-                          {row.Reason}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {row.Description}
+                          {row.reason}
                         </span>
                       </div>
                     </td>
                     <td className="min-w-[100px] border-b-[1px] border-white/40 pb-[18px] pt-[14px] sm:text-[14px]">
-                      {row.Status === "pending" ? (
+                      {row.status === "pending" ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-1 text-xs font-bold text-yellow-600">
                           Pending
                         </span>
@@ -148,7 +145,7 @@ const Reports = () => {
                       )}
                     </td>
                     <td className="min-w-[100px] border-b-[1px] border-white/40 pb-[18px] pt-[14px] sm:text-[14px]">
-                      {row.Status === "pending" && (
+                      {row.status === "pending" && (
                         <button
                           onClick={() => handleResolve(row.ID)}
                           className="flex items-center justify-center rounded-lg bg-green-500 p-2 text-white transition duration-200 hover:bg-green-600"

@@ -80,34 +80,52 @@ const Dashboard = () => {
           <>
             <Widget
               icon={<People size="27" variant="Bulk" />}
-              title={"Total Pengguna"}
+              title={
+                localStorage.getItem("role") === "pengajar"
+                  ? "Total Siswa"
+                  : "Total Pengguna"
+              }
               subtitle={stats.totalUsers}
             />
-            <Widget
-              icon={<UserTick size="27" variant="Bulk" />}
-              title={"Pengguna Aktif (7 Hari)"}
-              subtitle={stats.activeUsers}
-            />
+            {localStorage.getItem("role") !== "pengajar" && (
+              <Widget
+                icon={<UserTick size="27" variant="Bulk" />}
+                title={"Pengguna Aktif (7 Hari)"}
+                subtitle={stats.activeUsers}
+              />
+            )}
             <Widget
               icon={<Document size="27" variant="Bulk" />}
-              title={"Total Kuis"}
+              title={
+                localStorage.getItem("role") === "pengajar"
+                  ? "Total Kelas"
+                  : "Total Kuis"
+              }
               subtitle={stats.totalQuizzes}
             />
             <Widget
               icon={<Document size="27" variant="Bulk" />}
-              title={"Total Pertanyaan"}
+              title={
+                localStorage.getItem("role") === "pengajar"
+                  ? "Total Tugas"
+                  : "Total Pertanyaan"
+              }
               subtitle={stats.totalQuestions}
             />
-            <Widget
-              icon={<Activity size="27" variant="Bulk" />}
-              title={"Total Pengerjaan"}
-              subtitle={stats.totalAttempts}
-            />
-            <Widget
-              icon={<People size="27" variant="Bulk" />}
-              title={"Rata-rata Nilai"}
-              subtitle={`${stats.averageScore} Poin`}
-            />
+            {localStorage.getItem("role") !== "pengajar" && (
+              <>
+                <Widget
+                  icon={<Activity size="27" variant="Bulk" />}
+                  title={"Total Pengerjaan"}
+                  subtitle={stats.totalAttempts}
+                />
+                <Widget
+                  icon={<People size="27" variant="Bulk" />}
+                  title={"Rata-rata Nilai"}
+                  subtitle={`${stats.averageScore} Poin`}
+                />
+              </>
+            )}
           </>
         )}
       </div>

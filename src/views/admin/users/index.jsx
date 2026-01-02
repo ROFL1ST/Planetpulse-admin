@@ -49,8 +49,52 @@ const Users = () => {
     }
   };
 
+  /* Create User Logic */
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [roles, setRoles] = useState([]);
+  const [newUser, setNewUser] = useState({
+    name: "",
+    username: "",
+    password: "",
+    role_id: "",
+  });
+
+  const getRoles = async () => {
+    try {
+      const res = await api_service.get("/admin/roles");
+      if (res.status === "success") {
+        setRoles(res.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch roles", err);
+    }
+  };
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api_service.post("/admin/create-admin", {
+        name: newUser.name,
+        username: newUser.username,
+        password: newUser.password,
+        role_id: parseInt(newUser.role_id),
+      });
+
+      if (res.status === "success" || res.status === 201) {
+        toast.success("Akun berhasil dibuat!");
+        setShowAddModal(false);
+        setNewUser({ name: "", username: "", password: "", role_id: "" });
+        getData(); // Refresh user list
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error(error.response?.data?.message || "Gagal membuat akun");
+    }
+  };
+
   useEffect(() => {
     getData();
+    getRoles();
   }, []);
 
   return (
@@ -61,6 +105,12 @@ const Users = () => {
           <div className="text-xl font-bold text-navy-700 dark:text-white">
             Manajemen Pengguna
           </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition duration-200 hover:bg-brand-600"
+          >
+            + Buat Akun
+          </button>
         </div>
 
         <div className="mt-8 h-full overflow-x-scroll xl:overflow-hidden">
@@ -178,6 +228,99 @@ const Users = () => {
             </table>
           )}
         </div>
+
+        {/* ADD USER MODAL */}
+        {showAddModal && (
+          <div className="bg-black/50 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-navy-800">
+              <h3 className="mb-4 text-lg font-bold text-navy-700 dark:text-white">
+                Buat Akun Baru
+              </h3>
+              <form onSubmit={handleCreateUser}>
+                <div className="mb-3">
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                    Nama Lengkap
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newUser.name}
+                    onChange={(e) =>
+                      setNewUser({ ...newUser, name: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-gray-300 p-2.5 text-sm dark:bg-navy-700 dark:text-white"
+                    placeholder="Nama Lengkap"
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newUser.username}
+                    onChange={(e) =>
+                      setNewUser({ ...newUser, username: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-gray-300 p-2.5 text-sm dark:bg-navy-700 dark:text-white"
+                    placeholder="Username"
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={newUser.password}
+                    onChange={(e) =>
+                      setNewUser({ ...newUser, password: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-gray-300 p-2.5 text-sm dark:bg-navy-700 dark:text-white"
+                    placeholder="Password"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                    Role
+                  </label>
+                  <select
+                    required
+                    value={newUser.role_id}
+                    onChange={(e) =>
+                      setNewUser({ ...newUser, role_id: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-gray-300 p-2.5 text-sm dark:bg-navy-700 dark:text-white"
+                  >
+                    <option value="">-- Pilih Role --</option>
+                    {roles.map((role) => (
+                      <option key={role.ID} value={role.ID}>
+                        {role.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className="rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600"
+                  >
+                    Buat Akun
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );

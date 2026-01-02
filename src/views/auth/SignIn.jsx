@@ -16,15 +16,15 @@ const schema = yup
 
 export default function SignIn() {
   // Mengubah nama state error yang mereferensikan username
-  const [errorUsername, setErrorUsername] = useState(null); 
+  const [errorUsername, setErrorUsername] = useState(null);
   const [errorPassword, setErrorPassword] = useState(null);
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm({ 
+  } = useForm({
     resolver: yupResolver(schema),
-    defaultValues: { username: '', password: ''} 
+    defaultValues: { username: "", password: "" },
   });
   const navigate = useNavigate();
   const [load, setLoad] = useState(false);
@@ -35,12 +35,13 @@ export default function SignIn() {
       setLoad(true);
       setErrorUsername(null);
       setErrorPassword(null);
-      
+
       const res = await api_service.login(data);
 
       if (res.status === "success" && res.data && res.data.token) {
         localStorage.setItem("token", res.data.token);
-        localStorage.setItem("user", JSON.stringify(res.data.user)); 
+        localStorage.setItem("user", JSON.stringify(res.data.user));
+        localStorage.setItem("role", res.data.role);
         navigate("/admin/dashboard", { replace: true });
       } else {
         setErrorPassword("Login gagal, respons token tidak valid.");
@@ -48,9 +49,10 @@ export default function SignIn() {
     } catch (er) {
       setLoad(false);
       console.error(er);
-      
-      const errorMessage = er?.message || "Terjadi kesalahan koneksi atau server.";
-      
+
+      const errorMessage =
+        er?.message || "Terjadi kesalahan koneksi atau server.";
+
       // Sesuaikan pesan error dari backend
       if (errorMessage.toLowerCase().includes("username")) {
         setErrorUsername(errorMessage);
@@ -67,7 +69,7 @@ export default function SignIn() {
     setErrorUsername(null);
     setErrorPassword(null);
   }, [errors?.username?.message, errors?.password?.message]);
-  
+
   return (
     <div className="mt-16 mb-16 flex h-full w-full items-center justify-center px-2 md:mx-0 md:px-0 lg:mb-10 lg:items-center lg:justify-start">
       {/* Sign in section */}
@@ -90,7 +92,7 @@ export default function SignIn() {
             id="username"
             type="text"
           />
-          {errorUsername && ( 
+          {errorUsername && (
             <p className="mb-3 text-sm text-red-500">{errorUsername}</p>
           )}
           <p className="mb-3 text-sm text-red-500">
@@ -114,7 +116,7 @@ export default function SignIn() {
             {errors?.password && errors.password.message}
           </p>
           {/* Button */}
-          <button 
+          <button
             type="submit"
             className="linear mt-2 w-full rounded-xl bg-brand-500 py-[12px] text-base font-medium text-white transition duration-200 hover:bg-brand-600 active:bg-brand-700 dark:bg-brand-400 dark:text-white dark:hover:bg-brand-300 dark:active:bg-brand-200"
             disabled={load}

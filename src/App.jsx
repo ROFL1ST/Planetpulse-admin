@@ -18,6 +18,9 @@ import EditLesson from "views/admin/lesson/edit";
 import Logs from "views/admin/log";
 import Reports from "views/admin/reports";
 import Broadcast from "views/admin/broadcast";
+import Reviews from "views/admin/reviews";
+import Classrooms from "views/admin/classrooms";
+import ClassroomDetail from "views/admin/classrooms/detail";
 
 const App = () => {
   const authme = async () => {
@@ -162,6 +165,39 @@ const App = () => {
           element={
             <ProtectRoute
               children={<AdminLayout current="Users" children={<Users />} />}
+            />
+          }
+        />
+        <Route
+          path="reviews"
+          element={
+            <ProtectRoute
+              children={
+                <AdminLayout current="Reviews" children={<Reviews />} />
+              }
+            />
+          }
+        />
+        <Route
+          path="classrooms"
+          element={
+            <ProtectRoute
+              children={
+                <AdminLayout current="Classrooms" children={<Classrooms />} />
+              }
+            />
+          }
+        />
+        <Route
+          path="classrooms/:id"
+          element={
+            <ProtectRoute
+              children={
+                <AdminLayout
+                  current="Classroom Detail"
+                  children={<ClassroomDetail />}
+                />
+              }
             />
           }
         />

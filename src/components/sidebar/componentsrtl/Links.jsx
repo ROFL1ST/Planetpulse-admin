@@ -12,12 +12,15 @@ import {
   People,
   Personalcard,
   Stellar,
+  Star,
 } from "iconsax-react";
 import React from "react";
 import { Link, useLocation, useMatch, useResolvedPath } from "react-router-dom";
 // chakra imports
 
 export function SidebarLinks() {
+  const role = localStorage.getItem("role");
+
   return (
     <>
       <Links
@@ -25,7 +28,6 @@ export function SidebarLinks() {
         icon={<Home2 size="27" variant="Bulk" />}
         name={"Dashboard"}
       />
-
       <Links
         route={"/lesson"}
         icon={<Book size="27" variant="Bulk" />}
@@ -52,20 +54,43 @@ export function SidebarLinks() {
         name={"Logs"}
       /> */}
 
-      {/* <Links
-        route={"/category"}
-        icon={<Category size="27" variant="Bulk" />}
-        name={"Category"}
-      /> */}
+      {/* ADMIN & SUPERVISOR ONLY */}
+      {role !== "pengajar" && (
+        <Links
+          route={"/category"}
+          icon={<Category size="27" variant="Bulk" />}
+          name={"Category"}
+        />
+      )}
+
       <Links
-        route={"/reports"}
-        icon={<MenuBoard size="27" variant="Bulk" />}
-        name={"Laporan"}
+        route={"/classrooms"}
+        icon={<Book size="27" variant="Bulk" />}
+        name={"Kelas"}
       />
+
+      {/* ADMIN & SUPERVISOR ONLY */}
+      {role !== "pengajar" && (
+        <Links
+          route={"/reports"}
+          icon={<MenuBoard size="27" variant="Bulk" />}
+          name={"Laporan"}
+        />
+      )}
+
+      {/* ADMIN & SUPERVISOR ONLY */}
+      {role !== "pengajar" && (
+        <Links
+          route={"/broadcast"}
+          icon={<Stellar size="27" variant="Bulk" />}
+          name={"Siaran"}
+        />
+      )}
+
       <Links
-        route={"/broadcast"}
-        icon={<Stellar size="27" variant="Bulk" />}
-        name={"Siaran"}
+        route={"/reviews"}
+        icon={<Star size="27" variant="Bulk" />}
+        name={"Reviews"}
       />
       <Links
         route={"/users"}
