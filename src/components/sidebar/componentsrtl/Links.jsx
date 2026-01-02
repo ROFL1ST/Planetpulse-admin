@@ -25,7 +25,7 @@ export function SidebarLinks() {
         icon={<Home2 size="27" variant="Bulk" />}
         name={"Dashboard"}
       />
-     
+
       <Links
         route={"/lesson"}
         icon={<Book size="27" variant="Bulk" />}
@@ -51,13 +51,23 @@ export function SidebarLinks() {
         icon={<Chart size="27" variant="Bulk" />}
         name={"Logs"}
       /> */}
-      
+
       {/* <Links
         route={"/category"}
         icon={<Category size="27" variant="Bulk" />}
         name={"Category"}
       /> */}
-       <Links
+      <Links
+        route={"/reports"}
+        icon={<MenuBoard size="27" variant="Bulk" />}
+        name={"Laporan"}
+      />
+      <Links
+        route={"/broadcast"}
+        icon={<Stellar size="27" variant="Bulk" />}
+        name={"Siaran"}
+      />
+      <Links
         route={"/users"}
         icon={<Personalcard size="27" variant="Bulk" />}
         name={"Users"}
@@ -68,7 +78,7 @@ export function SidebarLinks() {
 
 export default SidebarLinks;
 
-function  Links({ route, icon, name }) {
+function Links({ route, icon, name }) {
   const { pathname } = useLocation();
   let resolved = useResolvedPath(pathname);
   let match = useMatch({ path: resolved.pathname, end: true });

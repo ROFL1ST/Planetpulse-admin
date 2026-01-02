@@ -20,7 +20,15 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem("token");
+      if (window.location.pathname !== "/auth/sign-in") {
+        window.location.href = "/auth/sign-in";
+      }
+    }
+    return Promise.reject(error);
+  }
 );
 
 class ApiService {

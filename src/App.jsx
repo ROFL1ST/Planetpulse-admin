@@ -16,6 +16,8 @@ import Users from "views/admin/users";
 import CreateLesson from "views/admin/lesson/create";
 import EditLesson from "views/admin/lesson/edit";
 import Logs from "views/admin/log";
+import Reports from "views/admin/reports";
+import Broadcast from "views/admin/broadcast";
 
 const App = () => {
   const authme = async () => {
@@ -24,15 +26,14 @@ const App = () => {
       localStorage.setItem("token", res.data.token);
     } catch (er) {
       console.log(er);
+      localStorage.removeItem("token");
     }
   };
 
- 
   useEffect(() => {
     if (localStorage.getItem("token")) {
       authme();
     }
-   
   }, []);
 
   return (
@@ -118,13 +119,11 @@ const App = () => {
             />
           }
         />
-         <Route
+        <Route
           path="logs"
           element={
             <ProtectRoute
-              children={
-                <AdminLayout current="Logs" children={<Logs />} />
-              }
+              children={<AdminLayout current="Logs" children={<Logs />} />}
             />
           }
         />
@@ -134,6 +133,26 @@ const App = () => {
             <ProtectRoute
               children={
                 <AdminLayout current="Category" children={<Category />} />
+              }
+            />
+          }
+        />
+        <Route
+          path="reports"
+          element={
+            <ProtectRoute
+              children={
+                <AdminLayout current="Reports" children={<Reports />} />
+              }
+            />
+          }
+        />
+        <Route
+          path="broadcast"
+          element={
+            <ProtectRoute
+              children={
+                <AdminLayout current="Broadcast" children={<Broadcast />} />
               }
             />
           }
