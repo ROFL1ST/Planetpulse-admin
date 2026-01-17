@@ -21,6 +21,7 @@ import Broadcast from "views/admin/broadcast";
 import Reviews from "views/admin/reviews";
 import Classrooms from "views/admin/classrooms";
 import ClassroomDetail from "views/admin/classrooms/detail";
+import TranslationManager from "views/admin/translations";
 
 const App = () => {
   const authme = async () => {
@@ -196,6 +197,19 @@ const App = () => {
                 <AdminLayout
                   current="Classroom Detail"
                   children={<ClassroomDetail />}
+                />
+              }
+            />
+          }
+        />
+        <Route
+          path="translations"
+          element={
+            <ProtectRoute
+              children={
+                <AdminLayout
+                  current="Translations"
+                  children={<TranslationManager />}
                 />
               }
             />

@@ -13,6 +13,7 @@ import {
   Personalcard,
   Stellar,
   Star,
+  Global,
 } from "iconsax-react";
 import React from "react";
 import { Link, useLocation, useMatch, useResolvedPath } from "react-router-dom";
@@ -97,6 +98,15 @@ export function SidebarLinks() {
         icon={<Personalcard size="27" variant="Bulk" />}
         name={"Users"}
       />
+
+      {/* ADMIN & SUPERVISOR ONLY */}
+      {role !== "pengajar" && (
+        <Links
+          route={"/translations"}
+          icon={<Global size="27" variant="Bulk" />}
+          name={"Translations"}
+        />
+      )}
     </>
   );
 }

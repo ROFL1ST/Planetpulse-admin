@@ -5,13 +5,14 @@ const BASE_URL = process.env.REACT_APP_BASE_URL || "http://localhost:8000/api";
 
 const api = axios.create({
   baseURL: BASE_URL,
+  withCredentials: true, // Enable cookies
 });
 
 // Interceptor Request: Jaminan Token Selalu Terkirim
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
-    if (token) {
+    if (token && token !== "logged_in") {
       config.headers.Authorization = `Bearer ${token}`;
     }
     // Set Content-Type default ke application/json (kecuali multipart)

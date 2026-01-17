@@ -38,13 +38,24 @@ export default function SignIn() {
 
       const res = await api_service.login(data);
 
-      if (res.status === "success" && res.data && res.data.token) {
-        localStorage.setItem("token", res.data.token);
-        localStorage.setItem("user", JSON.stringify(res.data.user));
-        localStorage.setItem("role", res.data.role);
+      if (res.status === "success") {
+        // Token is now in HTTP-Only cookie
+        if (res.data?.user) {
+          localStorage.setItem("user", JSON.stringify(res.data.user));
+        }
+        if (res.data?.role) {
+          localStorage.setItem("role", res.data.role);
+        }
+        // localStorage.setItem("token", "cookie"); // Optional: dummy token to verify login state in older logic?
+        // Better to rely on user/role or check /auth/me
+        // But App.jsx checks localStorage.getItem("token").
+        // So I should set a dummy token OR update App.jsx.
+        // For minimal breakage, I'll set a dummy token "logged_in".
+        localStorage.setItem("token", "logged_in");
+
         navigate("/admin/dashboard", { replace: true });
       } else {
-        setErrorPassword("Login gagal, respons token tidak valid.");
+        setErrorPassword("Login gagal.");
       }
     } catch (er) {
       setLoad(false);
